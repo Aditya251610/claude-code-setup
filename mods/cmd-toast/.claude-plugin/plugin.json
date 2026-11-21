@@ -1,0 +1,9 @@
+{
+  "name": "cmd-toast",
+  "version": "0.1.0",
+  "description": "A toast when a shell command starts, a live running timer in the status entry, and a toast with the last lines of output when it ends.",
+  "author": {
+    "name": "claude-code-setup"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "big-read-guard",
+  "version": "0.1.0",
+  "description": "Stops whole-file reads of huge or generated files (lockfiles, minified code, build output) so they do not flood the context; asks for a grep or a line range instead.",
+  "author": {
+    "name": "claude-code-setup"
+  },
+  "license": "MIT"
+}

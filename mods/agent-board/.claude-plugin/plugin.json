@@ -1,0 +1,9 @@
+{
+  "name": "agent-board",
+  "version": "0.1.0",
+  "description": "A docked board with a token box (context, 5-hour and weekly limits, per-model tokens, estimated cost) and live tiles for running subagents (name, model, time, tokens).",
+  "author": {
+    "name": "claude-code-setup"
+  },
+  "license": "MIT"
+}

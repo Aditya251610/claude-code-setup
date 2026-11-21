@@ -1,0 +1,9 @@
+{
+  "name": "done-notify",
+  "version": "0.1.0",
+  "description": "A desktop notification when a long turn finishes (notify-send on Linux, osascript on macOS).",
+  "author": {
+    "name": "claude-code-setup"
+  },
+  "license": "MIT"
+}
