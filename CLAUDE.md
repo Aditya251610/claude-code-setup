@@ -18,6 +18,10 @@
 - Keep answers short; skip recaps of work the user just watched.
 - Suggest `/compact <what to keep>` or `/clear` between unrelated tasks, and the `handoff` skill before ending a long session.
 
+## Context and auto-compact
+- Auto-compact runs when the context reaches **60% of a 1M window (600k tokens)**. It is set with `CLAUDE_CODE_AUTO_COMPACT_WINDOW=633000` in `settings.json` (the threshold sits 33k tokens below that window).
+- Do not wait for it. Between unrelated tasks, or at a natural stopping point, suggest `/compact <what to keep>`; before ending a long session use the `handoff` skill.
+
 ## Working style
 - Python is the main language; also Rust, C/C++ and Go. Prefer standard tooling: `pytest`, `ruff`, `cargo test`/`clippy`, `go test`, `ctest`.
 - Verify claims by running things where practical, and report failures plainly.

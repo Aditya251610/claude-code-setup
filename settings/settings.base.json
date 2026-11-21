@@ -2,7 +2,8 @@
   "model": "claude-sonnet-5-5",
   "effortLevel": "medium",
   "env": {
-    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "3"
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "3",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "633000"
   },
   "permissions": {
     "deny": [

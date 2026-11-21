@@ -8,6 +8,14 @@ An opinionated, token-frugal global setup for [Claude Code](https://code.claude.
 curl -fsSL https://raw.githubusercontent.com/Aditya251610/claude-code-setup/main/install.sh | bash
 ```
 
+Or let your agent do it. Add just the setup skill, then ask Claude Code to "set up Claude Code with claude-code-setup":
+
+```bash
+npx skills add Aditya251610/claude-code-setup --skill setup-claude-code -g -a claude-code
+```
+
+The skill walks the agent through the same installer: it checks `git` and `jq`, asks what you want (model pin, mods, language servers), shows the dry run, installs, verifies and tells you to restart. The same command without `--skill` adds the six everyday skills only, with no settings, agents or mods.
+
 Prefer to read it first?
 
 ```bash
@@ -34,10 +42,11 @@ Remove everything it added with `./uninstall.sh`.
 - Opus 5.5 only for a complex research or debugging task that has already taken more than 3 hours.
 - Haiku 5.5 only for repetitive, mechanical coding through the `worker` agent.
 - At most 3 subagents running at once (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`).
+- Auto-compact at 60% of a 1M window (600k tokens), set with `CLAUDE_CODE_AUTO_COMPACT_WINDOW=633000`. Measured: the engine then reports a threshold of exactly 600,000. (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` had no effect in Claude Code 2.1.330, so the window is used instead. On a model with a smaller window, the default threshold still applies.)
 
 **Agents** (`~/.claude/agents/`): `researcher` (read-only research), `reviewer` (read-only review, Sonnet), `worker` (cheap mechanical edits, Haiku).
 
-**Skills** (`~/.claude/skills/`, symlinked so `git pull` updates them): `commit`, `pr-summary`, `review`, `debug-loop`, `grill-me`, `handoff`.
+**Skills** (`~/.claude/skills/`, symlinked so `git pull` updates them): `commit`, `pr-summary`, `review`, `debug-loop`, `grill-me`, `handoff`, and `setup-claude-code` (set up, update or remove this setup from inside Claude Code).
 
 **Settings**: deny rules for `node_modules`, virtualenvs, `__pycache__`, `target/`, minified files, source maps and lockfiles; merged into your existing `settings.json`, never replacing it.
 
