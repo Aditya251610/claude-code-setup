@@ -147,6 +147,11 @@ if [ "$MODS" = 1 ] && [ -f "$SRC/.claude-plugin/marketplace.json" ]; then
     for m in $(jq -r '.plugins[].name' "$SRC/.claude-plugin/marketplace.json"); do
       act claude plugin install "$m@claude-code-setup" --scope user && record "plugin $m@claude-code-setup" || warn "could not install mod $m"
     done
+    # Mods this setup used to ship and no longer does: remove them if an earlier version installed them.
+    for old in token-weather; do
+      if [ "$DRY" = 1 ]; then echo "    [dry-run] claude plugin uninstall $old@claude-code-setup (only if installed)"
+      else claude plugin uninstall "$old@claude-code-setup" --scope user >/dev/null 2>&1 && echo "    removed retired mod $old" || true; fi
+    done
   else warn "'claude' not found on PATH; skipped mods. Re-run after installing Claude Code."; fi
 fi
 

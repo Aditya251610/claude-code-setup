@@ -1,7 +1,7 @@
 // Copyright 2026 Anthropic PBC
 // SPDX-License-Identifier: Apache-2.0
-// Modified by claude-code-setup: colour names replaced by theme keys, so the colours follow the
-// person's Claude Code theme. No other change.
+// Modified by claude-code-setup: the pane opens with a transparent background, so a glassy or blurred
+// terminal shows through. Colours are theme keys (warning, error), so they follow the person's Claude Code theme.
 //
 // Blast Radius: holds a risky Bash command and shows what it would change.
 //
@@ -56,7 +56,7 @@ export function register(on) {
         : await measure($, risk, cwd);
       summary = mine.report.summary;
 
-      opened = await $.ui.open({ id: PANE_ID, title: "Blast Radius", focus: true, rows: paneRows(mine.report) });
+      opened = await $.ui.open({ id: PANE_ID, title: "Blast Radius", focus: true, backgroundColor: "transparent", rows: paneRows(mine.report) });
       if (!opened.isPlaced) {
         mine.where = "band";
       }

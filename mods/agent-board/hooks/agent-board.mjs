@@ -10,8 +10,11 @@
 // The pane opens with a transparent background, so a glassy or blurred terminal shows through
 // (nothing is painted), whatever terminal the person uses.
 //
-// Colours are theme keys (claude, success, warning, error, suggestion), so the board follows the
-// person's Claude Code theme instead of fixed colour names.
+// Colours are theme keys, never fixed colours: borders use promptBorder (the colour Claude Code draws its
+// own prompt box in), meaning uses success / warning / error, and plain text is left in the terminal's
+// own foreground. So the board matches the person's Claude Code theme, and with an ANSI theme (/theme)
+// it follows the terminal's palette. (Named colours such as "cyan" are fixed RGB in Claude Code, not the
+// terminal's palette, so they would not adapt.)
 //
 // All figures come from the engine: $.session.usage() and $.agent.list(). The cost is an
 // estimate at API rates; on a subscription it is not a charge. The pane needs room beside the
@@ -21,6 +24,7 @@
 // and helpers that take $ are top-level functions.
 
 const PANE = "agent-board";
+const C = { accent: "promptBorder", info: "suggestion", good: "success", warn: "warning", bad: "error" };   // roles -> theme keys
 const RECENT = 6;             // tool calls kept per agent
 const CONFIRM_MS = 5_000;     // how long "Confirm stop" stays armed
 const SLOW_EVERY = 5;         // redraw every N seconds when nothing is running
@@ -136,7 +140,7 @@ function addUsage(u) {
 
 function tokenBox(Box, Text, usage, now, columns) {
   const barW = Math.max(8, Math.min(22, columns - 26));
-  const rows = [Text({ bold: true, color: "claude", children: "TOKENS" })];
+  const rows = [Text({ bold: true, color: C.accent, children: "TOKENS" })];
   const ctx = usage?.context;
   if (ctx && ctx.window) {
     const pct = Math.round(ctx.percent ?? ((ctx.tokens ?? 0) / ctx.window) * 100);
@@ -155,16 +159,16 @@ function tokenBox(Box, Text, usage, now, columns) {
   if (models.length > 0) {
     rows.push(Text({ dimColor: true, children: "per model since the mod loaded" }));
     for (const [id, t] of models) {
-      rows.push(Text({ children: [Text({ color: "suggestion", children: `${modelName(id)} ` }), Text({ dimColor: true, children: `in ${short(t.input)} · cached ${short(t.cached)} · out ${short(t.output)}` })] }));
+      rows.push(Text({ children: [Text({ color: C.info, children: `${modelName(id)} ` }), Text({ dimColor: true, children: `in ${short(t.input)} · cached ${short(t.cached)} · out ${short(t.output)}` })] }));
     }
   }
-  return Box({ flexDirection: "column", borderStyle: "round", borderColor: "claude", paddingX: 1, children: rows });
+  return Box({ flexDirection: "column", borderStyle: "round", borderColor: C.accent, paddingX: 1, children: rows });
 }
 
 function meter(Text, label, pct, width, note) {
   const p = Math.max(0, Math.min(100, pct));
   const filled = Math.round((p / 100) * width);
-  const color = p >= 85 ? "error" : p >= 60 ? "warning" : "success";
+  const color = p >= 85 ? C.bad : p >= 60 ? C.warn : C.good;
   return Text({
     children: [
       Text({ dimColor: true, children: `${label.padEnd(8)}` }),
@@ -181,7 +185,7 @@ function meter(Text, label, pct, width, note) {
 function summary(Box, Text, Button, $, agents, goneId) {
   const busy = agents.filter((a) => BUSY.has(a.status));
   const rows = [
-    Text({ bold: true, color: "suggestion", children: busy.length === 0 ? "AGENTS  none running" : `AGENTS  ${busy.length} running` }),
+    Text({ bold: true, color: C.info, children: busy.length === 0 ? "AGENTS  none running" : `AGENTS  ${busy.length} running` }),
     Text({ dimColor: true, children: busy.length === 0 ? "A subagent you start appears under the prompt." : "Press ↓ under the prompt, pick one and press Enter to open it here." }),
   ];
   if (goneId) {
@@ -192,7 +196,7 @@ function summary(Box, Text, Button, $, agents, goneId) {
 
 function detail(Box, Text, Button, $, a, now, columns) {
   const busy = BUSY.has(a.status);
-  const color = busy ? "claude" : a.status === "failed" || a.status === "killed" ? "error" : "success";
+  const color = busy ? C.accent : a.status === "failed" || a.status === "killed" ? C.bad : C.good;
   const endAt = busy || a.status === "idle" ? now : ended[a.id] ?? now;
   const elapsed = clock(Math.max(0, endAt - a.startTime));
   const out = outTokensOf(a);
@@ -220,7 +224,7 @@ function detail(Box, Text, Button, $, a, now, columns) {
     rows.push(Text({ dimColor: true, children: "RECENT" }));
     for (const c of calls.slice(0, -1).reverse()) rows.push(Text({ dimColor: true, children: clip(c, room) }));
   }
-  if (notes[a.id]) rows.push(Text({ color: "warning", children: clip(notes[a.id], room * 2) }));
+  if (notes[a.id]) rows.push(Text({ color: C.warn, children: clip(notes[a.id], room * 2) }));
   const buttons = [Button({ key: "back", label: "Back", hotkey: "m", onPress: () => back($) })];
   if (busy) {
     buttons.push(Button({ key: "stop", label: isArmed ? "Confirm stop" : "Stop", hotkey: "s", onPress: () => stopAgent($, a.id) }));

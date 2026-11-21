@@ -3,6 +3,4 @@ claude-code-setup is MIT licensed (see LICENSE).
 mods/blast-radius is copied from
 https://github.com/anthropics/claude-code-playground (claude-code/mods/),
 Copyright 2026 Anthropic PBC, licensed under the Apache License 2.0
-(see LICENSE-APACHE-2.0). Their source files keep their original license headers. One change was made: fixed
-colour names were replaced by theme keys so the colours follow the user's Claude Code theme
-(marked at the top of the modified file).
+(see LICENSE-APACHE-2.0). Its source file keeps their original license headers. Two changes were made: the pane opens with a transparent background so a glassy terminal shows through, and colours are theme keys so they follow the Claude Code theme.

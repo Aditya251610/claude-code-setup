@@ -45,17 +45,28 @@ Remove everything it added with `./uninstall.sh`.
 
 | Mod | What it does |
 | --- | --- |
-| `agent-board` | Docked pane: context, 5-hour and weekly limits, per-model tokens, estimated cost, plus live tiles for running subagents. |
+| `agent-board` | Docked pane: context, 5-hour and weekly limits, per-model tokens, estimated cost, and a details view for any subagent you open (what it is doing, tokens, cost, Back and Stop). |
 | `cmd-toast` | Quiet by default: toasts and a live status line only for background and long-running commands. |
 | `big-read-guard` | Refuses whole-file reads of huge or generated files. |
 | `done-notify` | Desktop notification when a long turn finishes. |
 | `blast-radius` | Holds risky commands and shows what they would change (Anthropic sample). |
 
+## Using the board
+- It opens by itself beside the chat; `/board` brings it back if you closed it (the ✕ only hides it).
+- Subagents are not shown all the time. Press `↓` under the prompt, pick one and press `Enter`: the chat shows its conversation and the board shows its details. `Back` returns to the main chat.
+- Each `↓` row also shows the agent's latest activity, tokens and cost.
+- `Stop` asks twice (press it again within 5 seconds) because it kills the agent.
+- Buttons take the mouse, or their hotkey after `ctrl+x` then `Tab` gives the board the keyboard.
+
+## Development
+`scripts/test.sh` runs every mod's tests and validates the plugins and the marketplace.
+
 ## Notes
+- The mods draw no fixed colours: panes are transparent (a glassy terminal shows through), borders and meaning use Claude Code theme keys, and text uses your terminal's foreground. For colours that follow your terminal's own palette, pick an ANSI theme with `/theme`.
 - Token and cost figures are estimates at API rates. On a subscription the cost is not a charge.
 - Claude Code does not expose a foreground Bash command's output before it ends, so `cmd-toast` follows live output only for background commands (through their output file); foreground ones show it when they end.
 - A top-level `effortLevel` does not apply to Opus 5.5; set effort for Opus with `/effort`.
-- `blast-radius` is Anthropic's sample from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied under Apache-2.0 with only its colours changed to theme keys (see `NOTICE`).
+- `blast-radius` is Anthropic's sample from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied under Apache-2.0 with two changes, a transparent pane background and theme-key colours (see `NOTICE`).
 
 ## License
 MIT, except the two vendored mods (Apache-2.0).
