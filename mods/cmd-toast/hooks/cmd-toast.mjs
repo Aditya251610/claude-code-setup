@@ -1,15 +1,17 @@
 // Command Toast: quiet by default, loud for what is long-running.
 //
-//   short commands            nothing at all
-//   foreground, over LONG_SECS   a toast when it passes the mark, a live timer in the status line,
-//                                and a toast with the result and the last lines when it ends
-//                                (Claude Code does not expose a foreground command's output
-//                                before it ends)
-//   background commands       a toast on start; the status line follows the command's output file
-//                                live (its latest line, refreshed every 2 s); a toast with the exit
-//                                code and the last lines when it ends
+//   short commands               nothing at all
+//   foreground, over LONG_SECS   a toast when it passes the mark and a toast with the result when it ends
+//   background commands          a toast on start and a toast with the exit code when it ends
 //
-// A toast cannot be updated in place, so the live view is the status line, which can.
+// A native toast is plain text that cannot change once shown, so the live part is a small card in the
+// band above the prompt (one per running command, no status line):
+//
+//   ▶ npm run dev  1:42                      [Expand] [×]
+//
+// Expand shows the full command and the last lines of its output (refreshed every 2 s for background
+// commands; Claude Code does not expose a foreground command's output until it ends). The × only hides
+// the card: it never stops the command. A finished card disappears after a short while unless expanded.
 //
 // The host reads on(...) and $.noun.method(...) from source, so they are spelled literally,
 // and helpers that take $ are top-level functions.
@@ -17,66 +19,156 @@
 const LONG_SECS = 10;
 const POLL_MS = 2000;
 const FOLLOW_LIMIT_MS = 6 * 3600 * 1000;
-const TAIL_LINES = 4;
+const DONE_LINGER_MS = 20_000;     // a finished card stays this long (unless expanded)
+const MAX_CARDS = 3;
+const CARD_LINES = 8;              // output lines shown when expanded
+const TAIL_LINES = 4;              // output lines in the result toast
 const LINE_WIDTH = 90;
 const PATH_RE = /Output is being written to: (\S+\.output)/;
 const EXIT_RE = /\[exited with code (-?\d+)\]/;
 
-let background = new Map();   // output path -> { cmd, who, startedAt, last }
+let cards = new Map();             // id -> card
+let nextId = 1;
+let background = new Map();        // output path -> card
 let poller = null;
-let foreground = null;        // { cmd, who, startedAt } while a long foreground command runs
+let ticker = null;
 
 export function register(on) {
   on("tool.call", { tool: "Bash" }, async ($, e, next) => {
-    const cmd = oneLine(String(e.command ?? ""), 70);
+    const full = String(e.command ?? "");
+    const cmd = oneLine(full, 70);
     const who = e.agentId ? "[agent] " : "";
     const startedAt = await $.clock.now();
-    let isLong = false;
-    let liveTimer = null;
+    let card = null;
     const mark = $.clock.after(LONG_SECS * 1000, () => {
-      isLong = true;
-      foreground = { cmd, who, startedAt };
+      card = addCard($, { cmd, full, who, startedAt, kind: "foreground" });
       $.ui.toast(`▶ ${who}${cmd}  (running over ${LONG_SECS}s)`, { timeoutMs: 3000 });
-      liveTimer = $.clock.every(1000, () => paint($));
-      paint($);
     });
     let ran;
     try {
       ran = await next(e);
     } finally {
       mark.cancel();
-      if (liveTimer) liveTimer.cancel();
-      if (isLong) foreground = null;
     }
     if (ran.deny !== undefined) {
-      paint($);
+      if (card) finish($, card, "failed", "", await $.clock.now());
       return ran;
     }
     const path = PATH_RE.exec(String(ran.text ?? ""))?.[1];
     if (path) {
-      background.set(path, { cmd, who, startedAt: await $.clock.now(), last: "" });
+      const bg = addCard($, { cmd, full, who, startedAt: await $.clock.now(), kind: "background", path });
+      background.set(path, bg);
       $.ui.toast(`⏵ ${who}${cmd}  (background)`, { timeoutMs: 3000 });
       if (!poller) {
         poller = $.clock.every(POLL_MS, () => follow($));
       }
-      paint($);
       return ran;
     }
-    if (isLong) {
-      const secs = (((await $.clock.now()) - startedAt) / 1000).toFixed(1);
+    if (card) {
+      const now = await $.clock.now();
+      const failed = ran.isError === true;
       const tail = lastLines(String(ran.text ?? ""));
-      const head = `${ran.isError === true ? "✘" : "✔"} ${who}${cmd}  (${secs}s)`;
-      $.ui.toast(tail === "" ? head : `${head}\n${tail}`, { timeoutMs: ran.isError === true ? 9000 : 5000 });
+      finish($, card, failed ? "failed" : "ok", tail, now);
+      const head = `${failed ? "✘" : "✔"} ${who}${cmd}  (${((now - card.startedAt) / 1000).toFixed(1)}s)`;
+      $.ui.toast(tail === "" ? head : `${head}\n${tail}`, { timeoutMs: failed ? 9000 : 5000 });
     }
-    paint($);
     return ran;
+  });
+
+  on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
+    const shown = [...cards.values()].filter((c) => !c.hidden);
+    if (e.hasSurvey || shown.length === 0) {
+      return next(e);
+    }
+    const { Box, Text, Button } = $.ui.resolve(e);
+    const now = await $.clock.now();
+    const columns = e.bodyColumns ?? 80;
+    const list = shown.slice(-MAX_CARDS);
+    const rows = list.map((c) => renderCard(Box, Text, Button, $, c, now, columns));
+    if (shown.length > list.length) {
+      rows.unshift(Text({ dimColor: true, children: `+${shown.length - list.length} more running` }));
+    }
+    return Box({ flexDirection: "column", children: rows });
   });
 }
 
-// Reads each followed output file: keeps its latest line, and on its exit marker says so and stops following.
+// ── cards ────────────────────────────────────────────────────────────────
+
+function addCard($, c) {
+  const made = { id: nextId++, state: "running", last: [], expanded: false, hidden: false, misses: 0, ...c };
+  cards.set(made.id, made);
+  if (!ticker) {
+    ticker = $.clock.every(1000, () => tick($));
+  }
+  $.ui.invalidate("ui.render");
+  return made;
+}
+
+function finish($, c, state, tail, now) {
+  c.state = state;
+  c.endedAt = now;
+  if (tail !== "") c.last = tail.split("\n");
+  $.ui.invalidate("ui.render");
+}
+
+// Once a second: drop finished cards that have lingered, redraw while any card shows, stop when none is left.
+async function tick($) {
+  const now = await $.clock.now();
+  for (const [id, c] of [...cards.entries()]) {
+    if (c.endedAt !== undefined && !c.expanded && now - c.endedAt > DONE_LINGER_MS) {
+      cards.delete(id);
+    }
+  }
+  if (cards.size === 0 && ticker) {
+    ticker.cancel();
+    ticker = null;
+  }
+  $.ui.invalidate("ui.render");
+}
+
+function renderCard(Box, Text, Button, $, c, now, columns) {
+  const running = c.state === "running";
+  const color = running ? "warning" : c.state === "ok" ? "success" : "error";
+  const icon = running ? "▶" : c.state === "ok" ? "✔" : "✘";
+  const secs = Math.max(0, Math.round(((c.endedAt ?? now) - c.startedAt) / 1000));
+  const room = Math.max(20, columns - 34);
+  const status = running ? clock(secs) : `${c.state === "lost" ? "lost track" : c.state === "ok" ? (c.exit !== undefined ? `exit ${c.exit}` : "done") : c.exit !== undefined ? `exit ${c.exit}` : "failed"}, ${clock(secs)}`;
+  const head = Box({
+    flexDirection: "row",
+    justifyContent: "space-between",
+    children: [
+      Text({ bold: true, color, children: `${icon} ${c.who}${clip(c.cmd, room)}  ${status}` }),
+      Box({
+        flexDirection: "row",
+        gap: 1,
+        children: [
+          Button({ key: `exp-${c.id}`, label: c.expanded ? "Collapse" : "Expand", onPress: () => { c.expanded = !c.expanded; $.ui.invalidate("ui.render"); } }),
+          Button({ key: `x-${c.id}`, label: "×", onPress: () => { c.hidden = true; $.ui.invalidate("ui.render"); } }),
+        ],
+      }),
+    ],
+  });
+  if (!c.expanded) {
+    return Box({ flexDirection: "column", paddingX: 1, children: [head] });
+  }
+  const body = [Text({ dimColor: true, children: `$ ${clip(oneLine(c.full, 400), columns * 2)}` })];
+  if (c.last.length > 0) {
+    for (const l of c.last.slice(-CARD_LINES)) body.push(Text({ children: clip(l, Math.max(20, columns - 6)) }));
+  } else if (c.kind === "foreground" && running) {
+    body.push(Text({ dimColor: true, children: "Output appears when the command ends (Claude Code does not expose it earlier)." }));
+  } else {
+    body.push(Text({ dimColor: true, children: "No output yet." }));
+  }
+  if (running) body.push(Text({ dimColor: true, children: "× only hides this card; the command keeps running." }));
+  return Box({ flexDirection: "column", paddingX: 1, borderStyle: "round", borderColor: color, children: [head, ...body] });
+}
+
+// ── following background output ──────────────────────────────────────────
+
+// Reads each followed output file: keeps its latest lines, and on its exit marker says so and stops following.
 async function follow($) {
   const now = await $.clock.now();
-  for (const [path, task] of [...background.entries()]) {
+  for (const [path, c] of [...background.entries()]) {
     let text = "";
     let readOk = false;
     try {
@@ -87,21 +179,23 @@ async function follow($) {
       text = "";
     }
     // An output file that cannot be read (deleted, or never written) will never show an exit marker.
-    // Give up after a few misses instead of leaving the status line stuck for hours.
-    task.misses = readOk ? 0 : (task.misses ?? 0) + 1;
-    if (task.misses >= 3) {
+    // Give up after a few misses instead of leaving a card running for hours.
+    c.misses = readOk ? 0 : c.misses + 1;
+    if (c.misses >= 3) {
       background.delete(path);
+      finish($, c, "lost", "", now);
       continue;
     }
     const exit = EXIT_RE.exec(text);
     const body = text.replace(EXIT_RE, "");
-    const lines = body.split("\n").map((l) => l.trimEnd()).filter((l) => l !== "");
-    task.last = lines.length > 0 ? oneLine(lines[lines.length - 1], 80) : "";
-    if (exit || now - task.startedAt > FOLLOW_LIMIT_MS) {
+    c.last = cleanLines(body).slice(-CARD_LINES).map((l) => oneLine(l, LINE_WIDTH));
+    if (exit || now - c.startedAt > FOLLOW_LIMIT_MS) {
       background.delete(path);
-      const secs = Math.round((now - task.startedAt) / 1000);
       const ok = exit && exit[1] === "0";
-      const head = `${ok ? "✔" : "✘"} ${task.who}${task.cmd}  (${exit ? `exit ${exit[1]}` : "stopped following"}, ${secs}s)`;
+      c.exit = exit ? exit[1] : undefined;
+      finish($, c, ok ? "ok" : "failed", "", now);
+      const secs = Math.round((now - c.startedAt) / 1000);
+      const head = `${ok ? "✔" : "✘"} ${c.who}${c.cmd}  (${exit ? `exit ${exit[1]}` : "stopped following"}, ${secs}s)`;
       const tail = lastLines(body);
       $.ui.toast(tail === "" ? head : `${head}\n${tail}`, { timeoutMs: ok ? 6000 : 10000 });
     }
@@ -110,26 +204,10 @@ async function follow($) {
     poller.cancel();
     poller = null;
   }
-  await paint($);
+  $.ui.invalidate("ui.render");
 }
 
-// One pinned status line: a long foreground command wins, else the background commands.
-async function paint($) {
-  const now = await $.clock.now();
-  if (foreground) {
-    $.ui.status(`▶ ${foreground.who}${foreground.cmd}  ${Math.round((now - foreground.startedAt) / 1000)}s`);
-    return;
-  }
-  const tasks = [...background.values()];
-  if (tasks.length === 0) {
-    $.ui.status(undefined);
-    return;
-  }
-  const newest = tasks[tasks.length - 1];
-  const age = Math.round((now - newest.startedAt) / 1000);
-  const label = tasks.length === 1 ? `⏵ ${newest.who}${newest.cmd}  ${clock(age)}` : `⏵ ${tasks.length} background commands  (${newest.cmd}  ${clock(age)})`;
-  $.ui.status(newest.last === "" ? label : `${label}  │ ${newest.last}`);
-}
+// ── helpers ──────────────────────────────────────────────────────────────
 
 function clock(s) {
   return s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -140,8 +218,15 @@ function oneLine(text, max) {
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
-function lastLines(text) {
+function clip(text, max) {
+  return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
+}
+
+function cleanLines(text) {
   const clean = text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
-  const lines = clean.split("\n").map((l) => l.trimEnd()).filter((l) => l !== "");
-  return lines.slice(-TAIL_LINES).map((l) => (l.length > LINE_WIDTH ? `${l.slice(0, LINE_WIDTH - 1)}…` : l)).join("\n");
+  return clean.split("\n").map((l) => l.trimEnd()).filter((l) => l !== "");
+}
+
+function lastLines(text) {
+  return cleanLines(text).slice(-TAIL_LINES).map((l) => (l.length > LINE_WIDTH ? `${l.slice(0, LINE_WIDTH - 1)}…` : l)).join("\n");
 }

@@ -4,7 +4,7 @@
   "owner": { "name": "claude-code-setup" },
   "plugins": [
     { "name": "agent-board",   "source": "./mods/agent-board",   "description": "Docked board: token usage (context, 5h and weekly limits, per model) and an on-demand details view for each subagent." },
-    { "name": "cmd-toast",     "source": "./mods/cmd-toast",     "description": "Toasts and a live status line only for background and long-running shell commands." },
+    { "name": "cmd-toast",     "source": "./mods/cmd-toast",     "description": "Toasts and a live, expandable card (timer, command, output) only for background and long-running shell commands." },
     { "name": "big-read-guard","source": "./mods/big-read-guard","description": "Blocks whole-file reads of huge or generated files." },
     { "name": "done-notify",   "source": "./mods/done-notify",   "description": "Desktop notification when a long turn finishes." },
     { "name": "blast-radius",  "source": "./mods/blast-radius",  "description": "Holds risky shell commands and shows what they would change (Anthropic sample, Apache-2.0)." }

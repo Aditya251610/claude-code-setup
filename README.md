@@ -55,7 +55,7 @@ Remove everything it added with `./uninstall.sh`.
 | Mod | What it does |
 | --- | --- |
 | `agent-board` | Docked pane: context, 5-hour and weekly limits, per-model tokens, estimated cost, and a details view for any subagent you open (what it is doing, tokens, cost, Back and Stop). |
-| `cmd-toast` | Quiet by default: toasts and a live status line only for background and long-running commands. |
+| `cmd-toast` | Quiet by default. Only background and long-running commands get a toast (start and result) and a live card above the prompt: timer, Expand for the command and its output, × hides the card (it never stops the command). No status line. |
 | `big-read-guard` | Refuses whole-file reads of huge or generated files. |
 | `done-notify` | Desktop notification when a long turn finishes. |
 | `blast-radius` | Holds risky commands and shows what they would change (Anthropic sample). |
@@ -73,7 +73,7 @@ Remove everything it added with `./uninstall.sh`.
 ## Notes
 - The mods draw no fixed colours: panes are transparent (a glassy terminal shows through), borders and meaning use Claude Code theme keys, and text uses your terminal's foreground. For colours that follow your terminal's own palette, pick an ANSI theme with `/theme`.
 - Token and cost figures are estimates at API rates. On a subscription the cost is not a charge.
-- Claude Code does not expose a foreground Bash command's output before it ends, so `cmd-toast` follows live output only for background commands (through their output file); foreground ones show it when they end.
+- Claude Code does not expose a foreground Bash command's output before it ends, so `cmd-toast` shows live output only for background commands (through their output file); foreground ones show it when they end. A native toast cannot change after it appears, which is why the live timer lives in the card.
 - A top-level `effortLevel` does not apply to Opus 5.5; set effort for Opus with `/effort`.
 - `blast-radius` is Anthropic's sample from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied under Apache-2.0 with two changes, a transparent pane background and theme-key colours (see `NOTICE`).
 
