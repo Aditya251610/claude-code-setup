@@ -20,8 +20,8 @@ while read -r kind path rest; do
           ($b[0]) as $b
           | .permissions.deny = ((.permissions.deny // []) - ($b.permissions.deny // []))
           | (if .env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS == $b.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS then del(.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS) else . end)
-          | (if .model == $b.model then del(.model) else . end)
-          | (if .effortLevel == $b.effortLevel then del(.effortLevel) else . end)' "$path" > "$path.new" && mv "$path.new" "$path"
+          | (if $keepm == 0 and .model == $b.model then del(.model) else . end)
+          | (if $keepe == 0 and .effortLevel == $b.effortLevel then del(.effortLevel) else . end)' --argjson keepm "$([[ " $rest " == *"had_model=1"* ]] && echo 1 || echo 0)" --argjson keepe "$([[ " $rest " == *"had_effort=1"* ]] && echo 1 || echo 0)" "$path" > "$path.new" && mv "$path.new" "$path"
         echo "    removed our entries from $path (your other settings are untouched)"
       fi ;;
     plugin) command -v claude >/dev/null 2>&1 && claude plugin uninstall "$path" >/dev/null 2>&1 && echo "    uninstalled plugin $path" || true ;;

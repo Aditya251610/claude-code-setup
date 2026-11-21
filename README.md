@@ -49,14 +49,13 @@ Remove everything it added with `./uninstall.sh`.
 | `cmd-toast` | Quiet by default: toasts and a live status line only for background and long-running commands. |
 | `big-read-guard` | Refuses whole-file reads of huge or generated files. |
 | `done-notify` | Desktop notification when a long turn finishes. |
-| `token-weather` | Context-window forecast above the prompt (Anthropic sample). |
 | `blast-radius` | Holds risky commands and shows what they would change (Anthropic sample). |
 
 ## Notes
 - Token and cost figures are estimates at API rates. On a subscription the cost is not a charge.
 - Claude Code does not expose a foreground Bash command's output before it ends, so `cmd-toast` follows live output only for background commands (through their output file); foreground ones show it when they end.
 - A top-level `effortLevel` does not apply to Opus 5.5; set effort for Opus with `/effort`.
-- `token-weather` and `blast-radius` are Anthropic's samples from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied under Apache-2.0 with only their colours changed to theme keys (see `NOTICE`).
+- `blast-radius` is Anthropic's sample from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied under Apache-2.0 with only its colours changed to theme keys (see `NOTICE`).
 
 ## License
 MIT, except the two vendored mods (Apache-2.0).

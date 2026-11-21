@@ -78,11 +78,20 @@ async function follow($) {
   const now = await $.clock.now();
   for (const [path, task] of [...background.entries()]) {
     let text = "";
+    let readOk = false;
     try {
       const run = await $.process.run(["tail", "-n", "30", path], { timeoutMs: 3000 });
-      text = run.exitCode === 0 ? run.stdout : "";
+      readOk = run.exitCode === 0;
+      text = readOk ? run.stdout : "";
     } catch {
       text = "";
+    }
+    // An output file that cannot be read (deleted, or never written) will never show an exit marker.
+    // Give up after a few misses instead of leaving the status line stuck for hours.
+    task.misses = readOk ? 0 : (task.misses ?? 0) + 1;
+    if (task.misses >= 3) {
+      background.delete(path);
+      continue;
     }
     const exit = EXIT_RE.exec(text);
     const body = text.replace(EXIT_RE, "");

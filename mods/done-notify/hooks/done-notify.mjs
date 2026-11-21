@@ -22,7 +22,8 @@ export function register(on) {
       if (platform === "Linux") {
         await $.process.run(["notify-send", "-a", "Claude Code", "Claude Code", body], { timeoutMs: 5000 });
       } else if (platform === "Darwin") {
-        await $.process.run(["osascript", "-e", `display notification "${body}" with title "Claude Code"`], { timeoutMs: 5000 });
+        // The text goes in as an argument, never spliced into the AppleScript source, so it cannot inject code.
+        await $.process.run(["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "Claude Code"', "-e", "end run", body], { timeoutMs: 5000 });
       }
     } catch {
       // No notifier available: stay quiet.

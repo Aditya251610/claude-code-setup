@@ -60,3 +60,17 @@ test('a background command: toast, live status line, closing toast with the exit
   expect(last).toContain('shutting down')
   expect(statuses[statuses.length - 1]).toBeUndefined()
 })
+
+test('a background command whose output file cannot be read stops being followed instead of sticking', async ($, on) => {
+  const { toasts, statuses, clock } = engine(on)
+  on('tool.call', () => ({ result: {}, text: BG }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'tail: cannot open' } }))
+
+  await $.tool.call({ tool: 'Bash', command: 'tail -f gone.log', run_in_background: true })
+  await clock.advance(100)
+  expect(statuses.some((s) => s && s.includes('tail -f gone.log'))).toBe(true)
+
+  await clock.advance(7_000)
+  expect(statuses[statuses.length - 1]).toBeUndefined()
+  expect(toasts.length).toBe(1)
+})

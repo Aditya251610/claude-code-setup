@@ -67,8 +67,14 @@ fi
 BK="$CLAUDE_DIR/backups/claude-code-setup-$(date +%Y%m%d-%H%M%S)"
 backup() { local p="$1"; { [ -e "$p" ] || [ -L "$p" ]; } || return 0
   act mkdir -p "$BK/$(dirname "${p#"$CLAUDE_DIR"/}")"; act cp -a "$p" "$BK/${p#"$CLAUDE_DIR"/}"; }
-record() { [ "$DRY" = 1 ] && return 0; mkdir -p "$CLAUDE_DIR"; printf '%s\n' "$*" >> "$MANIFEST"; }
-[ "$DRY" = 1 ] || { mkdir -p "$CLAUDE_DIR"; : > "$MANIFEST"; }   # rebuilt on every run
+# New entries go to a side file. When the run ends the side file replaces the manifest; if the run fails
+# part way, it is merged into the old manifest instead, so uninstall still knows everything that was added.
+NEWM="$MANIFEST.new"
+record() { [ "$DRY" = 1 ] && return 0; printf '%s\n' "$*" >> "$NEWM"; }
+finish_manifest() { local rc=$?; [ -f "$NEWM" ] || return 0
+  if [ "$rc" -eq 0 ]; then mv "$NEWM" "$MANIFEST"
+  else { [ -f "$MANIFEST" ] && cat "$MANIFEST"; cat "$NEWM"; } | awk '!seen[$0]++' > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"; rm -f "$NEWM"; fi; }
+[ "$DRY" = 1 ] || { mkdir -p "$CLAUDE_DIR"; : > "$NEWM"; trap finish_manifest EXIT; }
 
 # ── Skills: symlinks (so `git pull` updates them) ────────────────────────
 say "Skills -> $CLAUDE_DIR/skills"
@@ -124,8 +130,13 @@ else
   [ -f "$SJ" ] || echo '{}' > "$SJ"
   jq -e . "$SJ" >/dev/null 2>&1 || die "$SJ is not valid JSON; fix it and re-run (nothing was changed in it)."
   backup "$SJ"
+  # Remember whether you already had a model / effort setting, so uninstall never deletes your own choice.
+  # The first run decides: later runs reuse that record (by then our pin is in the file).
+  OLD_SET="$(grep "^settings $SJ " "$MANIFEST" 2>/dev/null | head -1 || true)"
+  if [ -n "$OLD_SET" ]; then HAD="$(printf '%s' "$OLD_SET" | grep -o 'had_model=[01] had_effort=[01]' || true)"
+  else HAD="had_model=$(jq -r 'if has("model") then 1 else 0 end' "$SJ") had_effort=$(jq -r 'if has("effortLevel") then 1 else 0 end' "$SJ")"; fi
   jq -s --argjson pin "$PIN" "$JQ" "$SJ" "$SRC/settings/settings.base.json" > "$SJ.new" && mv "$SJ.new" "$SJ"
-  record "settings $SJ pin=$PIN"
+  record "settings $SJ pin=$PIN ${HAD:-}"
 fi
 
 # ── Mods (plugins) ───────────────────────────────────────────────────────

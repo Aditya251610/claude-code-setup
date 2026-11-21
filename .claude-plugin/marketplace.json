@@ -7,7 +7,6 @@
     { "name": "cmd-toast",     "source": "./mods/cmd-toast",     "description": "Toasts and a live status line only for background and long-running shell commands." },
     { "name": "big-read-guard","source": "./mods/big-read-guard","description": "Blocks whole-file reads of huge or generated files." },
     { "name": "done-notify",   "source": "./mods/done-notify",   "description": "Desktop notification when a long turn finishes." },
-    { "name": "token-weather", "source": "./mods/token-weather", "description": "Context-window forecast above the prompt (Anthropic sample, Apache-2.0)." },
     { "name": "blast-radius",  "source": "./mods/blast-radius",  "description": "Holds risky shell commands and shows what they would change (Anthropic sample, Apache-2.0)." }
   ]
 }
