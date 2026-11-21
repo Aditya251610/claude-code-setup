@@ -1,5 +1,7 @@
 // Copyright 2026 Anthropic PBC
 // SPDX-License-Identifier: Apache-2.0
+// Modified by claude-code-setup: colour names replaced by theme keys, so the colours follow the
+// person's Claude Code theme. No other change.
 //
 // Blast Radius: holds a risky Bash command and shows what it would change.
 //
@@ -505,12 +507,12 @@ function draw(t, state) {
   return Box({
     flexDirection: "column",
     borderStyle: "round",
-    borderColor: "yellow",
+    borderColor: "warning",
     paddingX: 1,
     children: [
-      Text({ key: "title", bold: true, color: "yellow", children: `⚠ Blast Radius · ${state.risk.label}` }),
+      Text({ key: "title", bold: true, color: "warning", children: `⚠ Blast Radius · ${state.risk.label}` }),
       Text({ key: "cmd", children: [Text({ dimColor: true, children: "Command  " }), Text({ bold: true, children: state.command })], wrap: "truncate-end" }),
-      Text({ key: "sum", children: [Text({ dimColor: true, children: "Would    " }), Text({ color: "red", bold: true, children: report.summary })] }),
+      Text({ key: "sum", children: [Text({ dimColor: true, children: "Would    " }), Text({ color: "error", bold: true, children: report.summary })] }),
       Box({ key: "list", flexDirection: "column", marginTop: 1, children: list }),
       report.note ? Text({ key: "note", dimColor: true, italic: true, children: report.note, wrap: "wrap" }) : null,
       Box({

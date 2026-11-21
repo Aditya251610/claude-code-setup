@@ -1,5 +1,7 @@
 // Copyright 2026 Anthropic PBC
 // SPDX-License-Identifier: Apache-2.0
+// Modified by claude-code-setup: colour names replaced by theme keys, so the colours follow the
+// person's Claude Code theme. No other change.
 //
 // Token Weather: a live forecast of the context window, above the prompt.
 //
@@ -19,11 +21,11 @@ const BARS = "▁▂▃▄▅▆▇█";
 // Forecast bands, by percent of the window used.
 const FORECAST = [
 // Single-width text symbols, not emoji: they line up in every terminal font.
-  { upTo: 25, icon: "☀", word: "Clear", color: "yellow" },
-  { upTo: 50, icon: "☁", word: "Cloudy", color: "cyan" },
-  { upTo: 75, icon: "☂", word: "Showers", color: "blue" },
-  { upTo: 90, icon: "☇", word: "Storm", color: "magenta" },
-  { upTo: Infinity, icon: "↯", word: "Compact soon", color: "red" },
+  { upTo: 25, icon: "☀", word: "Clear", color: "success" },
+  { upTo: 50, icon: "☁", word: "Cloudy", color: "claude" },
+  { upTo: 75, icon: "☂", word: "Showers", color: "permission" },
+  { upTo: 90, icon: "☇", word: "Storm", color: "warning" },
+  { upTo: Infinity, icon: "↯", word: "Compact soon", color: "error" },
 ];
 
 // Readings: { tokens, window, percent }, oldest first.

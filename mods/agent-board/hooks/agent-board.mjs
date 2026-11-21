@@ -4,6 +4,9 @@
 //   AGENTS  one tile per running subagent, laid out like a tiling window manager:
 //           one agent fills the area, two split it, more keep splitting the remainder.
 //
+// Colours are theme keys (claude, success, warning, error, suggestion), so the board follows the
+// person's Claude Code theme instead of fixed colour names.
+//
 // All figures come from the engine: $.session.usage() and $.agent.list(). The cost is an
 // estimate at API rates; on a subscription it is not a charge. The pane needs room beside the
 // transcript (about 110 columns); where there is none it is simply not shown, `/board` says so.
@@ -99,7 +102,7 @@ function addUsage(u) {
 
 function tokenBox(Box, Text, usage, now, columns) {
   const barW = Math.max(8, Math.min(22, columns - 26));
-  const rows = [Text({ bold: true, color: "cyan", children: "TOKENS" })];
+  const rows = [Text({ bold: true, color: "claude", children: "TOKENS" })];
   const ctx = usage?.context;
   if (ctx && ctx.window) {
     const pct = Math.round(ctx.percent ?? ((ctx.tokens ?? 0) / ctx.window) * 100);
@@ -118,16 +121,16 @@ function tokenBox(Box, Text, usage, now, columns) {
   if (models.length > 0) {
     rows.push(Text({ dimColor: true, children: "per model since the mod loaded" }));
     for (const [id, t] of models) {
-      rows.push(Text({ children: [Text({ color: "magenta", children: `${modelName(id)} ` }), Text({ dimColor: true, children: `in ${short(t.input)} · cached ${short(t.cached)} · out ${short(t.output)}` })] }));
+      rows.push(Text({ children: [Text({ color: "suggestion", children: `${modelName(id)} ` }), Text({ dimColor: true, children: `in ${short(t.input)} · cached ${short(t.cached)} · out ${short(t.output)}` })] }));
     }
   }
-  return Box({ flexDirection: "column", borderStyle: "round", borderColor: "cyan", paddingX: 1, children: rows });
+  return Box({ flexDirection: "column", borderStyle: "round", borderColor: "claude", paddingX: 1, children: rows });
 }
 
 function meter(Text, label, pct, width, note) {
   const p = Math.max(0, Math.min(100, pct));
   const filled = Math.round((p / 100) * width);
-  const color = p >= 85 ? "red" : p >= 60 ? "yellow" : "green";
+  const color = p >= 85 ? "error" : p >= 60 ? "warning" : "success";
   return Text({
     children: [
       Text({ dimColor: true, children: `${label.padEnd(8)}` }),
@@ -150,7 +153,7 @@ function agentArea(Box, Text, agents, now, columns) {
     ended[a.id] = ended[a.id] ?? now;
     return now - ended[a.id] < LINGER_MS;
   });
-  const head = Text({ bold: true, color: "magenta", children: `AGENTS  ${shown.filter((a) => BUSY.has(a.status)).length} running` });
+  const head = Text({ bold: true, color: "suggestion", children: `AGENTS  ${shown.filter((a) => BUSY.has(a.status)).length} running` });
   if (shown.length === 0) {
     return Box({ flexDirection: "column", flexGrow: 1, paddingX: 1, children: [head, Text({ dimColor: true, children: "No subagents running." })] });
   }
@@ -172,7 +175,7 @@ function tiles(Box, Text, list, now, columns, vertical) {
 
 function tile(Box, Text, a, now, columns) {
   const busy = BUSY.has(a.status);
-  const color = busy ? "cyan" : a.status === "failed" || a.status === "killed" ? "red" : "green";
+  const color = busy ? "claude" : a.status === "failed" || a.status === "killed" ? "error" : "success";
   const endAt = busy || a.status === "idle" ? now : ended[a.id] ?? now;
   const elapsed = clock(Math.max(0, endAt - a.startTime));
   const outTokens = (a.usage ?? []).reduce((n, u) => n + (u.output_tokens ?? 0), 0);

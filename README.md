@@ -56,7 +56,7 @@ Remove everything it added with `./uninstall.sh`.
 - Token and cost figures are estimates at API rates. On a subscription the cost is not a charge.
 - Claude Code does not stream a Bash command's output to mods, so `cmd-toast` shows output when the command ends.
 - A top-level `effortLevel` does not apply to Opus 5.5; set effort for Opus with `/effort`.
-- `token-weather` and `blast-radius` are Anthropic's samples from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied unmodified under Apache-2.0 (see `NOTICE`).
+- `token-weather` and `blast-radius` are Anthropic's samples from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied under Apache-2.0 with only their colours changed to theme keys (see `NOTICE`).
 
 ## License
 MIT, except the two vendored mods (Apache-2.0).

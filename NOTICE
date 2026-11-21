@@ -1,6 +1,8 @@
 claude-code-setup is MIT licensed (see LICENSE).
 
-mods/token-weather and mods/blast-radius are copied, unmodified, from
+mods/token-weather and mods/blast-radius are copied from
 https://github.com/anthropics/claude-code-playground (claude-code/mods/),
 Copyright 2026 Anthropic PBC, licensed under the Apache License 2.0
-(see LICENSE-APACHE-2.0). Their source files keep their original license headers.
+(see LICENSE-APACHE-2.0). Their source files keep their original license headers. One change was made to each: fixed
+colour names were replaced by theme keys so the colours follow the user's Claude Code theme
+(marked at the top of each modified file).
