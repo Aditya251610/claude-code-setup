@@ -4,7 +4,7 @@
   "owner": { "name": "claude-code-setup" },
   "plugins": [
     { "name": "agent-board",   "source": "./mods/agent-board",   "description": "Docked board: token usage (context, 5h and weekly limits, per model) and live subagent tiles." },
-    { "name": "cmd-toast",     "source": "./mods/cmd-toast",     "description": "Toast and live timer for shell commands, with the output tail when they finish." },
+    { "name": "cmd-toast",     "source": "./mods/cmd-toast",     "description": "Toasts and a live status line only for background and long-running shell commands." },
     { "name": "big-read-guard","source": "./mods/big-read-guard","description": "Blocks whole-file reads of huge or generated files." },
     { "name": "done-notify",   "source": "./mods/done-notify",   "description": "Desktop notification when a long turn finishes." },
     { "name": "token-weather", "source": "./mods/token-weather", "description": "Context-window forecast above the prompt (Anthropic sample, Apache-2.0)." },

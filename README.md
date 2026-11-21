@@ -46,7 +46,7 @@ Remove everything it added with `./uninstall.sh`.
 | Mod | What it does |
 | --- | --- |
 | `agent-board` | Docked pane: context, 5-hour and weekly limits, per-model tokens, estimated cost, plus live tiles for running subagents. |
-| `cmd-toast` | Toast and live timer for shell commands, output tail when they finish. |
+| `cmd-toast` | Quiet by default: toasts and a live status line only for background and long-running commands. |
 | `big-read-guard` | Refuses whole-file reads of huge or generated files. |
 | `done-notify` | Desktop notification when a long turn finishes. |
 | `token-weather` | Context-window forecast above the prompt (Anthropic sample). |
@@ -54,7 +54,7 @@ Remove everything it added with `./uninstall.sh`.
 
 ## Notes
 - Token and cost figures are estimates at API rates. On a subscription the cost is not a charge.
-- Claude Code does not stream a Bash command's output to mods, so `cmd-toast` shows output when the command ends.
+- Claude Code does not expose a foreground Bash command's output before it ends, so `cmd-toast` follows live output only for background commands (through their output file); foreground ones show it when they end.
 - A top-level `effortLevel` does not apply to Opus 5.5; set effort for Opus with `/effort`.
 - `token-weather` and `blast-radius` are Anthropic's samples from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied under Apache-2.0 with only their colours changed to theme keys (see `NOTICE`).
 
