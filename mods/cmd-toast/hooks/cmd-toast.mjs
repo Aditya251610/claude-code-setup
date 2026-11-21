@@ -24,6 +24,7 @@ const MAX_CARDS = 3;
 const CARD_LINES = 8;              // output lines shown when expanded
 const TAIL_LINES = 4;              // output lines in the result toast
 const LINE_WIDTH = 90;
+const TAIL_BYTES = 16_384;           // how much of the end of an output file is read each time
 const PATH_RE = /Output is being written to: (\S+\.output)/;
 const EXIT_RE = /\[exited with code (-?\d+)\]/;
 
@@ -184,9 +185,11 @@ async function follow($) {
     let text = "";
     let readOk = false;
     try {
-      const run = await $.process.run(["tail", "-n", "30", path], { timeoutMs: 3000 });
-      readOk = run.exitCode === 0;
-      text = readOk ? run.stdout : "";
+      // The end of the file, read with the file API (works on every OS; there is no `tail` on Windows).
+      const { size } = await $.fs.stat(path);
+      const offset = Math.max(0, size - TAIL_BYTES);
+      text = await $.fs.read(path, { offset, length: size - offset });
+      readOk = true;
     } catch {
       text = "";
     }

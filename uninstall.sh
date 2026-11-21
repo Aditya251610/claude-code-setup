@@ -8,11 +8,14 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "${CC
 say() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 [ -f "$MANIFEST" ] || { echo "Nothing recorded at $MANIFEST; nothing to remove."; exit 0; }
 command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }
-while read -r kind path rest; do
+# Manifest lines are "kind<TAB>path<TAB>extra" (older ones were space-separated). Read on fd 3 so a command in
+# the loop can never swallow the rest of the manifest.
+while IFS= read -r line <&3 || [ -n "$line" ]; do
+  case "$line" in *$'\t'*) IFS=$'\t' read -r kind path rest <<< "$line" ;; *) read -r kind path rest <<< "$line" ;; esac
   case "$kind" in
     symlink) [ -L "$path" ] && { rm "$path"; echo "    removed $path"; } ;;
     file)    [ -f "$path" ] && grep -q 'managed by claude-code-setup' "$path" && { rm "$path"; echo "    removed $path"; } ;;
-    block)   [ -f "$path" ] && { tmp="$(mktemp)"; awk -v b="$BEGIN" -v e="$END" '$0==b{s=1} !s{print} $0==e{s=0}' "$path" > "$tmp" && mv "$tmp" "$path"; echo "    removed instructions block from $path"; } ;;
+    block)   [ -f "$path" ] && { tmp="$(mktemp "${TMPDIR:-/tmp}/ccs.XXXXXX")"; awk -v b="$BEGIN" -v e="$END" '$0==b{s=1} !s{print} $0==e{s=0}' "$path" > "$tmp" && mv "$tmp" "$path"; echo "    removed instructions block from $path"; } ;;
     settings)
       base="$HERE/settings/settings.base.json"
       if [ -f "$path" ] && [ -f "$base" ]; then
@@ -29,6 +32,6 @@ while read -r kind path rest; do
       [ -f "$path" ] && { jq 'if .outputStyle == "Terse" then del(.outputStyle) else . end' "$path" > "$path.new" && mv "$path.new" "$path"; echo "    cleared the Terse output style from $path"; } ;;
     plugin) command -v claude >/dev/null 2>&1 && claude plugin uninstall "$path" >/dev/null 2>&1 && echo "    uninstalled plugin $path" || true ;;
   esac
-done < "$MANIFEST"
+done 3< "$MANIFEST"
 rm -f "$MANIFEST"
 say "Done. Backups made by the installer are in $CLAUDE_DIR/backups/ if you want to restore anything."

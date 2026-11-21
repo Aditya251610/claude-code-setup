@@ -19,7 +19,7 @@ The installer backs up whatever it replaces to `~/.claude/backups/`, never uses 
 
 ## Steps
 
-1. **Check the basics.** `git --version`, `jq --version`, `claude --version`. If `jq` or `git` is missing, tell the user which command installs it for their system and stop; do not install system packages yourself. Mods need Claude Code 2.1.287 or newer.
+1. **Check the basics.** Find out the system first. **macOS, Linux and WSL:** `curl --version`, `tar --version`, `jq --version`, `claude --version`; if `jq`, `curl` or `tar` is missing, tell the user which command installs it for their system and stop (do not install system packages yourself). **Windows (PowerShell):** only `claude --version` is needed; use the PowerShell installer in steps 3 to 5. Mods need Claude Code 2.1.287 or newer.
 
 2. **Ask before changing anything.** Ask these in one message, with the defaults in brackets:
    - Pin the default model and effort in `settings.json`? [yes; `--no-model-pin` says no]
@@ -28,11 +28,11 @@ The installer backs up whatever it replaces to `~/.claude/backups/`, never uses 
    - The Terse output style (short bullets, no recap)? [no; `--style terse`; switchable later with `/output-style`]
    - Language servers? [none; `--lsp python,rust,cpp,go,ts` picks languages; this only adds Claude Code plugins and prints the commands for the servers, which the user runs]
 
-3. **Get the source.** If `~/.local/share/claude-code-setup` exists, run `git -C ~/.local/share/claude-code-setup pull --ff-only`. Otherwise `git clone --depth 1 https://github.com/Aditya251610/claude-code-setup ~/.local/share/claude-code-setup`.
+3. **Get the installer.** macOS, Linux, WSL: `curl -fsSL https://raw.githubusercontent.com/Aditya251610/claude-code-setup/main/install.sh -o /tmp/ccs-install.sh`. Windows: `irm https://raw.githubusercontent.com/Aditya251610/claude-code-setup/main/install.ps1 -OutFile $env:TEMP\ccs-install.ps1`. No clone needed. For a fixed version pass `--version vX.Y.Z` (bash) or `-Version vX.Y.Z` (PowerShell) later. Skim the script if the user asks to see it.
 
-4. **Preview.** Run `./install.sh --dry-run` from that folder, with the flags from step 2. Summarise what it would change in a few lines. If the user's `~/.claude/settings.json` already has a `model` or `effortLevel` and pinning is on, say so: it will be replaced (backed up first) and uninstall will leave the pin in place.
+4. **Preview.** Run `bash /tmp/ccs-install.sh --dry-run` (Windows: `powershell -File $env:TEMP\ccs-install.ps1 -DryRun`) with the options from step 2 (on Windows they are `-Lang`, `-Style`, `-NoMods`, `-NoModelPin`, `-Lsp`). Summarise what it would change in a few lines. If the user's `~/.claude/settings.json` already has a `model` or `effortLevel` and pinning is on, say so: it will be replaced (backed up first) and uninstall will leave the pin in place.
 
-5. **Install.** Run `./install.sh` with the same flags. If it exits non-zero, show the last lines of its output and stop; do not retry blindly and do not edit files by hand to work around it. The installer records what it added, so `./uninstall.sh` still works after a partial run.
+5. **Install.** Run `bash /tmp/ccs-install.sh` (Windows: `powershell -File $env:TEMP\ccs-install.ps1`) with the same options. If it exits non-zero, show the last lines of its output and stop; do not retry blindly and do not edit files by hand to work around it. The installer records what it added, so `./uninstall.sh` still works after a partial run.
 
 6. **Verify.** Run `claude plugin list` (the mods should show as enabled, if installed), `ls ~/.claude/agents ~/.claude/skills`, and check that `~/.claude/CLAUDE.md` contains `claude-code-setup:begin`, and that `~/.claude/rules/` and the `*-best-practices` skills exist for the languages chosen. Report anything missing.
 
@@ -40,9 +40,9 @@ The installer backs up whatever it replaces to `~/.claude/backups/`, never uses 
 
 ## Update, check, remove
 
-- **Update:** `git -C ~/.local/share/claude-code-setup pull --ff-only`, then `./install.sh` again (same flags). Retired mods are removed automatically.
-- **Check:** `./install.sh --dry-run` shows what differs, and changes nothing.
-- **Remove:** `./uninstall.sh` removes the skill links, agent files, the `CLAUDE.md` block, the settings entries it added and the plugins. Backups stay in `~/.claude/backups/`.
+- **Update:** download the installer again and re-run it with the same flags (it refreshes `~/.local/share/claude-code-setup`). Retired mods are removed automatically.
+- **Check:** `bash /tmp/ccs-install.sh --dry-run` shows what differs, and changes nothing.
+- **Remove:** `~/.local/share/claude-code-setup/uninstall.sh` (Windows: `& "$env:LOCALAPPDATA\claude-code-setup\uninstall.ps1"`) removes the skill links, agent files, the `CLAUDE.md` block, the settings entries it added and the plugins. Backups stay in `~/.claude/backups/`.
 
 ## Rules
 

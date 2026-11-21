@@ -1,5 +1,21 @@
-# Agent Board
+# agent-board
 
-A docked pane beside the chat. TOKENS shows the context fill, the 5-hour and 7-day limit windows with reset times, the session's estimated cost (API rates, not a charge) and tokens per model counted from when the mod loaded. AGENTS is a one-line summary until you open an agent: press the down arrow under the prompt, pick a subagent and press Enter, and the pane shows that agent's details (model, elapsed time, context bar, output tokens, estimated cost, what it is doing now, its recent tool calls) with Back and Stop buttons (Stop asks for a second press). The down-arrow list is rewritten too, so each row shows the agent's latest activity, tokens and cost. Needs about 110 terminal columns; `/board` opens the pane and says when there is no room. Buttons take a click, or a hotkey (`m`, `s`) after ctrl+x then Tab focuses the pane.
+A docked pane beside the chat that shows your token budget and lets you inspect any subagent.
 
-Part of [claude-code-setup](../../README.md). Install with `claude plugin install agent-board@claude-code-setup --scope user` after adding the marketplace (the installer does both). Mods run inside Claude Code with your permissions and are not sandboxed: read the source in `hooks/` before installing. Remove with `claude plugin uninstall agent-board`.
+## What you see
+- **TOKENS:** context fill, the 5-hour and 7-day limit windows with reset times, the session's estimated cost (API rates, not a charge) and tokens per model since the mod loaded.
+- **AGENTS:** a one-line summary of running subagents.
+- **Agent details:** press `↓` under the prompt, pick a subagent and press `Enter`. The chat shows its conversation and the pane shows its model, elapsed time, context bar, output tokens, estimated cost, what it is doing now and its recent tool calls.
+- **Buttons:** `Back` returns to the main chat. `Stop` kills the agent and asks for a second press within 5 seconds.
+- **The `↓` list:** each row also shows the agent's latest activity, tokens and cost.
+
+## Use
+- It opens by itself. `/board` brings it back if you closed it (the ✕ only hides it).
+- Buttons take the mouse, or press `ctrl+x` then `Tab` to give the pane the keyboard.
+- It needs about 110 terminal columns; `/board` says so when there is no room.
+
+## Notes
+- The pane is transparent, so a glassy terminal shows through. Colours are Claude Code theme keys.
+- Tunables are constants at the top of `hooks/agent-board.mjs` (`RECENT`, `CONFIRM_MS`).
+
+Part of [claude-code-setup](../../README.md). Mods run inside Claude Code with your permissions and are not sandboxed: read `hooks/` before installing. Remove with `claude plugin uninstall agent-board`.

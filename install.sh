@@ -12,13 +12,14 @@ MANIFEST="$CLAUDE_DIR/.claude-code-setup.manifest"
 BEGIN='<!-- claude-code-setup:begin -->'
 END='<!-- claude-code-setup:end -->'
 MARK='managed by claude-code-setup'
-DRY=0; PIN=1; MODS=1; LSP=""; PACKS=""; STYLE=""
+DRY=0; PIN=1; MODS=1; LSP=""; PACKS=""; STYLE=""; VERSION="${CCS_VERSION:-main}"
 
 usage() { cat <<'U'
 Usage: install.sh [options]
   --dry-run          show what would change, change nothing
   --no-model-pin     do not set the default model / effort in settings.json
   --no-mods          skip installing the mods (plugins)
+  --version REF      install a tagged release (e.g. v0.2.1) instead of the latest main
   --lang LIST        install language rules (python,rust,go,cpp,ts): short defaults that load
                      only when matching files are touched; prints what toolchain is missing
   --style NAME       install and select an output style (terse: short bullets, no recap)
@@ -30,7 +31,7 @@ U
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;; --no-model-pin) PIN=0 ;; --no-mods) MODS=0 ;;
-    --lang) PACKS="${2:-}"; shift ;; --style) STYLE="${2:-}"; shift ;;
+    --version) VERSION="${2:-}"; shift ;; --lang) PACKS="${2:-}"; shift ;; --style) STYLE="${2:-}"; shift ;;
     --lsp) LSP="${2:-}"; shift ;; -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac; shift
@@ -45,24 +46,47 @@ act()  { if [ "$DRY" = 1 ]; then printf '    [dry-run] %s\n' "$*"; else "$@"; fi
 case "$(uname -s)" in
   Linux)  OS=linux; grep -qi microsoft /proc/version 2>/dev/null && OS=wsl ;;
   Darwin) OS=macos ;;
-  *) die "Unsupported OS: $(uname -s). Linux, macOS and WSL are supported." ;;
+  MINGW*|MSYS*|CYGWIN*) die "This is the Linux/macOS installer. On Windows run the PowerShell installer: irm https://raw.githubusercontent.com/Aditya251610/claude-code-setup/main/install.ps1 | iex   (or use WSL and run this script there)." ;;
+  *) die "Unsupported OS: $(uname -s). Linux, macOS, WSL and Windows (PowerShell) are supported." ;;
 esac
 PM=""
 for p in brew pacman apt-get dnf zypper; do command -v "$p" >/dev/null 2>&1 && { PM=$p; break; }; done
 say "System: $OS${PM:+ (package manager: $PM)}"
 command -v jq >/dev/null 2>&1 || die "jq is required. Install it first (e.g. 'brew install jq', 'sudo pacman -S jq', 'sudo apt install jq')."
 
-# ── Source: this clone, or fetch one ─────────────────────────────────────
+TMP=""
+cleanup() { [ -n "$TMP" ] && rm -rf "$TMP"; return 0; }
+# ── Source: this checkout, or download a copy ────────────────────────────
+# Running from a downloaded or piped script needs only curl and tar (no git, no clone). The copy lives in
+# $DEST because the skills (symlinks) and the mods load from it; re-running the installer refreshes it.
 HERE=""
-# Only trust the script's own folder when run from a file; when piped (curl | bash) there is none.
+# Only trust the script's own folder when run from a file inside a checkout; when piped (curl | bash) there is none.
 [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ] && HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -n "$HERE" ] && [ -f "$HERE/.ccs-root" ]; then
   SRC="$HERE"
 else
-  command -v git >/dev/null 2>&1 || die "git is required to download claude-code-setup."
   SRC="$DEST"
-  if [ -d "$DEST/.git" ]; then say "Updating $DEST"; act git -C "$DEST" pull -q --ff-only
-  else say "Downloading to $DEST"; act git clone -q --depth 1 "$REPO_URL" "$DEST"; fi
+  trap cleanup EXIT
+  case "$VERSION" in main|master) REF="heads/$VERSION" ;; *) REF="tags/$VERSION" ;; esac
+  URL="${CCS_TARBALL:-${REPO_URL%.git}/archive/refs/$REF.tar.gz}"
+  if [ -d "$DEST/.git" ]; then
+    # An older install made with git: keep updating it the same way.
+    command -v git >/dev/null 2>&1 || die "git is required to update $DEST (or remove that folder and re-run)."
+    say "Updating $DEST"; act git -C "$DEST" pull -q --ff-only
+  else
+    command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || die "curl and tar are required to download claude-code-setup."
+    say "Downloading claude-code-setup ($VERSION) to $DEST"
+    if [ "$DRY" = 1 ]; then echo "    [dry-run] download $URL and unpack it into $DEST"
+    else
+      tmp="$(mktemp -d "${TMPDIR:-/tmp}/ccs.XXXXXX")"; TMP="$tmp"
+      curl -fsSL "$URL" -o "$tmp/src.tar.gz" || die "could not download $URL"
+      mkdir "$tmp/src" && tar -xzf "$tmp/src.tar.gz" -C "$tmp/src" --strip-components=1 || die "could not unpack the download"
+      [ -f "$tmp/src/.ccs-root" ] || die "the download is not a claude-code-setup release"
+      mkdir -p "$(dirname "$DEST")"
+      [ -e "$DEST" ] && mv "$DEST" "$DEST.old.$$"
+      mv "$tmp/src" "$DEST" && rm -rf "$DEST.old.$$"
+    fi
+  fi
   if [ "$DRY" = 1 ] && [ ! -f "$SRC/.ccs-root" ]; then say "(dry run: nothing downloaded, so the file list below is not shown)"; exit 0; fi
 fi
 [ -f "$SRC/.ccs-root" ] || die "Not a claude-code-setup checkout: $SRC"
@@ -73,13 +97,13 @@ backup() { local p="$1"; { [ -e "$p" ] || [ -L "$p" ]; } || return 0
   act mkdir -p "$BK/$(dirname "${p#"$CLAUDE_DIR"/}")"; act cp -a "$p" "$BK/${p#"$CLAUDE_DIR"/}"; }
 # New entries go to a side file and are merged into the manifest when the run ends, however it ends.
 NEWM="$MANIFEST.new"
-record() { [ "$DRY" = 1 ] && return 0; printf '%s\n' "$*" >> "$NEWM"; }
+record() { [ "$DRY" = 1 ] && return 0; printf '%s\t%s\t%s\n' "$1" "$2" "${3:-}" >> "$NEWM"; }   # kind, path, extra (tab-separated: paths may hold spaces)
 # The manifest only ever grows: a run with other options (or one that fails) must not forget what an
 # earlier run installed. The earliest line per kind+path wins, so the first record of the user's own
 # settings (what they had before us) is never overwritten. Uninstall skips anything already gone.
 finish_manifest() { [ -f "$NEWM" ] || return 0
-  { [ -f "$MANIFEST" ] && cat "$MANIFEST"; cat "$NEWM"; } | awk '!seen[$1" "$2]++' > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"; rm -f "$NEWM"; }
-[ "$DRY" = 1 ] || { mkdir -p "$CLAUDE_DIR"; : > "$NEWM"; trap finish_manifest EXIT; }
+  { [ -f "$MANIFEST" ] && cat "$MANIFEST"; cat "$NEWM"; } | awk -F'\t' '!seen[$1 FS $2]++' > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"; rm -f "$NEWM"; }
+[ "$DRY" = 1 ] || { mkdir -p "$CLAUDE_DIR"; : > "$NEWM"; trap "finish_manifest; cleanup" EXIT; }
 
 # ── Skills: symlinks (so `git pull` updates them) ────────────────────────
 say "Skills -> $CLAUDE_DIR/skills"
@@ -91,7 +115,7 @@ for d in "$SRC"/skills/*/; do
     act ln -sfn "${d%/}" "$t"; echo "    relink  $n"
   elif [ -e "$t" ] || [ -L "$t" ]; then warn "skill '$n' already exists and is not ours; left alone"; continue
   else act ln -s "${d%/}" "$t"; echo "    link    $n"; fi
-  record "symlink $t"
+  record symlink "$t"
 done
 
 # ── Agents: copies (symlinks for agents are not documented) ──────────────
@@ -101,7 +125,7 @@ for f in "$SRC"/agents/*.md; do
   n="$(basename "$f")"; t="$CLAUDE_DIR/agents/$n"
   if [ -e "$t" ] && ! grep -q "$MARK" "$t"; then warn "agent '$n' already exists and is not ours; left alone"; continue; fi
   if [ -e "$t" ] && cmp -s "$f" "$t"; then echo "    ok      $n"; else backup "$t"; act cp "$f" "$t"; echo "    copy    $n"; fi
-  record "file $t"
+  record file "$t"
 done
 
 # ── Languages (opt-in): each language is self-contained, so they never mix ──
@@ -120,12 +144,12 @@ if [ -n "$PACKS" ]; then
     if [ -e "$t" ] && ! grep -q "$MARK" "$t"; then warn "rule '$l.md' already exists and is not ours; left alone"
     else
       if [ -e "$t" ] && cmp -s "$SRC/langs/$l/rule.md" "$t"; then echo "    ok      rule  $l"; else backup "$t"; act cp "$SRC/langs/$l/rule.md" "$t"; echo "    copy    rule  $l"; fi
-      record "file $t"
+      record file "$t"
     fi
     sk="$CLAUDE_DIR/skills/$l-best-practices"; src="$SRC/langs/$l/skill"
-    if [ -L "$sk" ] && [ "$(readlink "$sk")" = "$src" ]; then echo "    ok      skill $l-best-practices"; record "symlink $sk"
+    if [ -L "$sk" ] && [ "$(readlink "$sk")" = "$src" ]; then echo "    ok      skill $l-best-practices"; record symlink "$sk"
     elif [ -e "$sk" ] || [ -L "$sk" ]; then warn "skill '$l-best-practices' already exists and is not ours; left alone"
-    else act ln -s "$src" "$sk"; echo "    link    skill $l-best-practices"; record "symlink $sk"; fi
+    else act ln -s "$src" "$sk"; echo "    link    skill $l-best-practices"; record symlink "$sk"; fi
     case "$l" in
       python) have python3 || echo "    missing: python3 ($(sys python python3 python3 python))"
               have ruff   || echo "    missing: ruff    (uv tool install ruff   or: pip install --user ruff)"
@@ -146,11 +170,11 @@ CM="$CLAUDE_DIR/CLAUDE.md"
 if [ "$DRY" = 1 ]; then echo "    [dry-run] insert/replace the block between $BEGIN and $END"
 else
   backup "$CM"; touch "$CM"
-  tmp="$(mktemp)"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/ccs.XXXXXX")"
   awk -v b="$BEGIN" -v e="$END" '$0==b{skip=1} !skip{print} $0==e{skip=0}' "$CM" > "$tmp"
   { cat "$tmp"; [ -s "$tmp" ] && echo; echo "$BEGIN"; cat "$SRC/CLAUDE.md"; echo "$END"; } > "$CM"
   rm -f "$tmp"
-  record "block $CM"
+  record block "$CM"
 fi
 
 # ── settings.json: merged, never replaced ────────────────────────────────
@@ -164,7 +188,7 @@ JQ='def uniq: reduce .[] as $x ([]; if index($x) then . else . + [$x] end);
 if [ "$DRY" = 1 ]; then
   echo "    [dry-run] merge $SRC/settings/settings.base.json (model pin: $([ $PIN = 1 ] && echo yes || echo no))"
   if [ -f "$SJ" ]; then
-    mt="$(mktemp)"; jq -s --argjson pin "$PIN" "$JQ" "$SJ" "$SRC/settings/settings.base.json" > "$mt"
+    mt="$(mktemp "${TMPDIR:-/tmp}/ccs.XXXXXX")"; jq -s --argjson pin "$PIN" "$JQ" "$SJ" "$SRC/settings/settings.base.json" > "$mt"
     diff <(jq -S . "$SJ") <(jq -S . "$mt") | sed 's/^/    /' || true; rm -f "$mt"
   fi
 else
@@ -173,11 +197,12 @@ else
   backup "$SJ"
   # Remember whether you already had a model / effort setting, so uninstall never deletes your own choice.
   # The first run decides: later runs reuse that record (by then our pin is in the file).
-  OLD_SET="$(grep "^settings $SJ " "$MANIFEST" 2>/dev/null | head -1 || true)"
+  OLD_SET="$(awk -F'\t' -v p="$SJ" '$1=="settings" && $2==p {print; exit}' "$MANIFEST" 2>/dev/null || true)"
+  [ -n "$OLD_SET" ] || OLD_SET="$(grep -F "settings $SJ " "$MANIFEST" 2>/dev/null | head -1 || true)"   # manifests from v0.2.x
   if [ -n "$OLD_SET" ]; then HAD="$(printf '%s' "$OLD_SET" | grep -o 'had_model=[01] had_effort=[01]' || true)"
   else HAD="had_model=$(jq -r 'if has("model") then 1 else 0 end' "$SJ") had_effort=$(jq -r 'if has("effortLevel") then 1 else 0 end' "$SJ")"; fi
   jq -s --argjson pin "$PIN" "$JQ" "$SJ" "$SRC/settings/settings.base.json" > "$SJ.new" && mv "$SJ.new" "$SJ"
-  record "settings $SJ pin=$PIN ${HAD:-}"
+  record settings "$SJ" "pin=$PIN ${HAD:-}"
 fi
 
 # ── Output style (opt-in) ────────────────────────────────────────────────
@@ -190,10 +215,10 @@ if [ -n "$STYLE" ]; then
       if [ -e "$t" ] && ! grep -q "$MARK" "$t"; then warn "output style 'terse' already exists and is not ours; left alone"
       else
         if [ -e "$t" ] && cmp -s "$SRC/output-styles/terse.md" "$t"; then echo "    ok      terse.md"; else backup "$t"; act cp "$SRC/output-styles/terse.md" "$t"; echo "    copy    terse.md"; fi
-        record "file $t"
+        record file "$t"
         if [ "$DRY" = 1 ]; then echo "    [dry-run] select it as the default (outputStyle) unless you already chose one"
         elif [ "$(jq -r 'has("outputStyle")' "$SJ")" = "false" ]; then
-          jq '.outputStyle = "Terse"' "$SJ" > "$SJ.new" && mv "$SJ.new" "$SJ"; record "outputstyle $SJ"; echo "    selected as your default style (change it any time with /output-style)"
+          jq '.outputStyle = "Terse"' "$SJ" > "$SJ.new" && mv "$SJ.new" "$SJ"; record outputstyle "$SJ"; echo "    selected as your default style (change it any time with /output-style)"
         else echo "    you already have an output style set; left it. Switch with /output-style"; fi
       fi ;;
     *) warn "unknown style '$STYLE' (available: terse)" ;;
@@ -206,7 +231,7 @@ if [ "$MODS" = 1 ] && [ -f "$SRC/.claude-plugin/marketplace.json" ]; then
   if command -v claude >/dev/null 2>&1; then
     act claude plugin marketplace add "$SRC" || warn "could not add the marketplace (already added?)"
     for m in $(jq -r '.plugins[].name' "$SRC/.claude-plugin/marketplace.json"); do
-      act claude plugin install "$m@claude-code-setup" --scope user && record "plugin $m@claude-code-setup" || warn "could not install mod $m"
+      act claude plugin install "$m@claude-code-setup" --scope user && record plugin "$m@claude-code-setup" || warn "could not install mod $m"
     done
     # Mods this setup used to ship and no longer does: remove them if an earlier version installed them.
     for old in token-weather; do
@@ -229,7 +254,7 @@ if [ -n "$LSP" ]; then
       ts)     plug=typescript-lsp;    cmd="npm i -g typescript typescript-language-server" ;;
       *) warn "unknown language '$l'"; continue ;;
     esac
-    command -v claude >/dev/null 2>&1 && { act claude plugin install "$plug@claude-plugins-official" --scope user && record "plugin $plug@claude-plugins-official" || warn "could not install $plug"; }
+    command -v claude >/dev/null 2>&1 && { act claude plugin install "$plug@claude-plugins-official" --scope user && record plugin "$plug@claude-plugins-official" || warn "could not install $plug"; }
     echo "    server for $l (run yourself): $cmd"
   done
 fi

@@ -8,6 +8,20 @@ const BAND = {
   props: { hasSurvey: false, isCollapsed: false, isWorking: true, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 12 }, view: {} },
 } as const
 
+// The mod reads an output file with the file API (stat, then a byte range), so tests mock those two.
+function mockFile(on: any, read: () => string | undefined) {
+  on('fs.stat', () => {
+    const text = read()
+    if (text === undefined) throw new Error('ENOENT')
+    return { value: { kind: 'file', size: text.length, mtimeMs: 0, isLink: false } }
+  })
+  on('fs.read', (_: unknown, e: any) => {
+    const text = read() ?? ''
+    const start = e.offset ?? 0
+    return { value: text.slice(start, e.length === undefined ? undefined : start + e.length) }
+  })
+}
+
 function engine(on: any) {
   const toasts: string[] = []
   const statuses: unknown[] = []
@@ -53,7 +67,7 @@ test('a background command: live card, expand shows command and output, × hides
   const { toasts, statuses, clock } = engine(on)
   let output = 'booting\nlistening on :3000'
   on('tool.call', () => ({ result: {}, text: BG }))
-  on('process.run', () => ({ value: { exitCode: 0, stdout: output, stderr: '' } }))
+  mockFile(on, () => output)
 
   await $.tool.call({ tool: 'Bash', command: 'npm run dev', run_in_background: true })
   expect(toasts[0]).toContain('⏵ npm run dev')
@@ -84,7 +98,7 @@ test('a background command: live card, expand shows command and output, × hides
 test('a finished card goes away after a while; an unreadable output file stops being followed', async ($, on) => {
   const { toasts, clock } = engine(on)
   on('tool.call', () => ({ result: {}, text: BG }))
-  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'tail: cannot open' } }))
+  mockFile(on, () => undefined)
   await $.tool.call({ tool: 'Bash', command: 'tail -f gone.log', run_in_background: true })
   await clock.advance(7_000)
   let ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -113,7 +127,7 @@ test('a command that throws after the mark leaves no card stuck on running', asy
 test('a lost card shows ? and not the failure mark', async ($, on) => {
   const { clock } = engine(on)
   on('tool.call', () => ({ result: {}, text: BG }))
-  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'gone' } }))
+  mockFile(on, () => undefined)
   await $.tool.call({ tool: 'Bash', command: 'tail -f gone.log', run_in_background: true })
   await clock.advance(7_000)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -128,7 +142,7 @@ test('the background timer counts from when the command started', async ($, on) 
     await clock.advance(1_500)
     return { result: {}, text: BG }
   })
-  on('process.run', () => ({ value: { exitCode: 0, stdout: 'running', stderr: '' } }))
+  mockFile(on, () => 'running')
   await $.tool.call({ tool: 'Bash', command: 'npm run dev', run_in_background: true })
   await clock.advance(2_000)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -140,7 +154,7 @@ test('a hidden finished card is dropped, and more than three cards show "+N more
   const { clock } = engine(on)
   let n = 0
   on('tool.call', () => { n += 1; return { result: {}, text: BG.replace('abc123', `t${n}`).replace('x/tasks', `x/tasks`) } })
-  on('process.run', () => ({ value: { exitCode: 0, stdout: 'running', stderr: '' } }))
+  mockFile(on, () => 'running')
   for (let i = 0; i < 5; i += 1) {
     await $.tool.call({ tool: 'Bash', command: `job ${i}`, run_in_background: true })
   }
