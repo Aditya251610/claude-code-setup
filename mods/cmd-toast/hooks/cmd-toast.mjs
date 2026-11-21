@@ -40,23 +40,30 @@ export function register(on) {
     const who = e.agentId ? "[agent] " : "";
     const startedAt = await $.clock.now();
     let card = null;
+    let over = false;              // set once the command has returned, so a late mark never makes a card
     const mark = $.clock.after(LONG_SECS * 1000, () => {
+      if (over) return;
       card = addCard($, { cmd, full, who, startedAt, kind: "foreground" });
       $.ui.toast(`▶ ${who}${cmd}  (running over ${LONG_SECS}s)`, { timeoutMs: 3000 });
     });
     let ran;
     try {
       ran = await next(e);
-    } finally {
+    } catch (err) {
+      over = true;
       mark.cancel();
+      if (card) finish($, card, "failed", "", await $.clock.now());
+      throw err;
     }
+    over = true;
+    mark.cancel();
     if (ran.deny !== undefined) {
       if (card) finish($, card, "failed", "", await $.clock.now());
       return ran;
     }
     const path = PATH_RE.exec(String(ran.text ?? ""))?.[1];
     if (path) {
-      const bg = addCard($, { cmd, full, who, startedAt: await $.clock.now(), kind: "background", path });
+      const bg = addCard($, { cmd, full, who, startedAt, kind: "background", path });
       background.set(path, bg);
       $.ui.toast(`⏵ ${who}${cmd}  (background)`, { timeoutMs: 3000 });
       if (!poller) {
@@ -86,7 +93,7 @@ export function register(on) {
     const list = shown.slice(-MAX_CARDS);
     const rows = list.map((c) => renderCard(Box, Text, Button, $, c, now, columns));
     if (shown.length > list.length) {
-      rows.unshift(Text({ dimColor: true, children: `+${shown.length - list.length} more running` }));
+      rows.unshift(Text({ dimColor: true, children: `+${shown.length - list.length} more` }));
     }
     return Box({ flexDirection: "column", children: rows });
   });
@@ -115,7 +122,9 @@ function finish($, c, state, tail, now) {
 async function tick($) {
   const now = await $.clock.now();
   for (const [id, c] of [...cards.entries()]) {
-    if (c.endedAt !== undefined && !c.expanded && now - c.endedAt > DONE_LINGER_MS) {
+    // A finished card goes when it is hidden, or after the linger unless the person expanded it
+    // (an expanded one stays until they press ×).
+    if (c.endedAt !== undefined && (c.hidden || (!c.expanded && now - c.endedAt > DONE_LINGER_MS))) {
       cards.delete(id);
     }
   }
@@ -123,13 +132,16 @@ async function tick($) {
     ticker.cancel();
     ticker = null;
   }
-  $.ui.invalidate("ui.render");
+  if ([...cards.values()].some((c) => !c.hidden)) {
+    $.ui.invalidate("ui.render");
+  }
 }
 
 function renderCard(Box, Text, Button, $, c, now, columns) {
   const running = c.state === "running";
-  const color = running ? "warning" : c.state === "ok" ? "success" : "error";
-  const icon = running ? "▶" : c.state === "ok" ? "✔" : "✘";
+  const lost = c.state === "lost";
+  const color = running || lost ? "warning" : c.state === "ok" ? "success" : "error";
+  const icon = running ? "▶" : lost ? "?" : c.state === "ok" ? "✔" : "✘";
   const secs = Math.max(0, Math.round(((c.endedAt ?? now) - c.startedAt) / 1000));
   const room = Math.max(20, columns - 34);
   const status = running ? clock(secs) : `${c.state === "lost" ? "lost track" : c.state === "ok" ? (c.exit !== undefined ? `exit ${c.exit}` : "done") : c.exit !== undefined ? `exit ${c.exit}` : "failed"}, ${clock(secs)}`;

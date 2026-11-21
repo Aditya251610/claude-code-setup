@@ -96,3 +96,57 @@ test('a finished card goes away after a while; an unreadable output file stops b
   expect(toasts.length).toBe(1)
   await ui.unmount()
 })
+
+test('a command that throws after the mark leaves no card stuck on running', async ($, on) => {
+  const { clock } = engine(on)
+  on('tool.call', async () => {
+    await clock.advance(12_000)
+    throw new Error('tool crashed')
+  })
+  await $.tool.call({ tool: 'Bash', command: 'make broken' }).catch(() => undefined)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /▶ make broken/ })).toBeFalsy()
+  expect(await ui.find({ type: 'Text', text: /✘ make broken/ })).toBeTruthy()
+  await ui.unmount()
+})
+
+test('a lost card shows ? and not the failure mark', async ($, on) => {
+  const { clock } = engine(on)
+  on('tool.call', () => ({ result: {}, text: BG }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'gone' } }))
+  await $.tool.call({ tool: 'Bash', command: 'tail -f gone.log', run_in_background: true })
+  await clock.advance(7_000)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /\? tail -f gone\.log/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /✘ tail -f gone\.log/ })).toBeFalsy()
+  await ui.unmount()
+})
+
+test('the background timer counts from when the command started', async ($, on) => {
+  const { clock } = engine(on)
+  on('tool.call', async () => {
+    await clock.advance(1_500)
+    return { result: {}, text: BG }
+  })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'running', stderr: '' } }))
+  await $.tool.call({ tool: 'Bash', command: 'npm run dev', run_in_background: true })
+  await clock.advance(2_000)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /npm run dev  0:04/ })).toBeTruthy()
+  await ui.unmount()
+})
+
+test('a hidden finished card is dropped, and more than three cards show "+N more"', async ($, on) => {
+  const { clock } = engine(on)
+  let n = 0
+  on('tool.call', () => { n += 1; return { result: {}, text: BG.replace('abc123', `t${n}`).replace('x/tasks', `x/tasks`) } })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'running', stderr: '' } }))
+  for (let i = 0; i < 5; i += 1) {
+    await $.tool.call({ tool: 'Bash', command: `job ${i}`, run_in_background: true })
+  }
+  await clock.advance(100)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /\+2 more/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /running more/ })).toBeFalsy()
+  await ui.unmount()
+})
