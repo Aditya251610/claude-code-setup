@@ -87,4 +87,4 @@ They are written from official sources (PEP 8 and ruff, the Rust Book and Cargo 
 - `blast-radius` is Anthropic's sample from [claude-code-playground](https://github.com/anthropics/claude-code-playground), copied under Apache-2.0 with two changes, a transparent pane background and theme-key colours (see `NOTICE`).
 
 ## License
-MIT, except the two vendored mods (Apache-2.0).
+MIT, except `mods/blast-radius`, which is Anthropic's sample from [claude-code-playground](https://github.com/anthropics/claude-code-playground) and stays under Apache-2.0 (see `LICENSE-APACHE-2.0` and `NOTICE`).
