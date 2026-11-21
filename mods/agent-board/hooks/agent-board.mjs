@@ -4,6 +4,9 @@
 //   AGENTS  one tile per running subagent, laid out like a tiling window manager:
 //           one agent fills the area, two split it, more keep splitting the remainder.
 //
+// The pane opens with a transparent background, so a glassy or blurred terminal shows through
+// (nothing is painted), whatever terminal the person uses.
+//
 // Colours are theme keys (claude, success, warning, error, suggestion), so the board follows the
 // person's Claude Code theme instead of fixed colour names.
 //
@@ -35,13 +38,13 @@ export function register(on) {
       tally = {};
     }
     await $.command.register({ name: "board", description: "Show the agent and token board" });
-    void $.ui.open({ id: PANE, title: "Board" });
+    void $.ui.open({ id: PANE, title: "Board", backgroundColor: "transparent" });
     $.clock.every(1000, () => tick($));
     return result;
   });
 
   on("command.run", { command: "board" }, async ($) => {
-    const opened = await $.ui.open({ id: PANE, title: "Board" });
+    const opened = await $.ui.open({ id: PANE, title: "Board", backgroundColor: "transparent" });
     return { text: opened.isPlaced ? "Board opened." : "No room for the board here: it needs a wider window (about 110 columns)." };
   });
 
@@ -134,8 +137,8 @@ function meter(Text, label, pct, width, note) {
   return Text({
     children: [
       Text({ dimColor: true, children: `${label.padEnd(8)}` }),
-      Text({ color, children: "█".repeat(filled) }),
-      Text({ dimColor: true, children: "░".repeat(width - filled) }),
+      Text({ color, children: "━".repeat(filled) }),
+      Text({ dimColor: true, children: "━".repeat(width - filled) }),
       Text({ color, bold: true, children: ` ${String(p).padStart(3)}%` }),
       Text({ dimColor: true, children: note ? ` ${note}` : "" }),
     ],
