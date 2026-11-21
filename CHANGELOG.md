@@ -2,6 +2,10 @@
 
 All notable changes to this project. Versions follow [semantic versioning](https://semver.org); dates are release dates.
 
+## 0.3.1 - 2026-11-22
+### Fixed
+- The `setup-claude-code` skill description counts eight skills, not six.
+
 ## 0.3.0 - 2026-11-21
 ### Added
 - **Windows:** `install.ps1` and `uninstall.ps1` (PowerShell 5.1 and 7, no admin rights). They copy skills instead of symlinking, keep the same manifest and settings merge as the bash installer, and are covered by `scripts/test-install-ps.sh`.

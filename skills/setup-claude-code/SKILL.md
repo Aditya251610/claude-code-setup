@@ -1,6 +1,6 @@
 ---
 name: setup-claude-code
-description: Set up, update, check or remove the claude-code-setup global Claude Code configuration (model and effort policy, three subagents, six skills, token-saving deny rules, optional mods) on this machine. Use when the user asks to set up Claude Code, install claude-code-setup, apply their Claude Code setup, update it, check it, or uninstall it.
+description: Set up, update, check or remove the claude-code-setup global Claude Code configuration (model and effort policy, three subagents, eight skills, token-saving deny rules, optional mods) on this machine. Use when the user asks to set up Claude Code, install claude-code-setup, apply their Claude Code setup, update it, check it, or uninstall it.
 ---
 
 # Set up Claude Code with claude-code-setup
