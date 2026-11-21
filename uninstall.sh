@@ -4,7 +4,7 @@ set -euo pipefail
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 MANIFEST="$CLAUDE_DIR/.claude-code-setup.manifest"
 BEGIN='<!-- claude-code-setup:begin -->'; END='<!-- claude-code-setup:end -->'
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "${CCS_HOME:-$HOME/.local/share/claude-code-setup}")"
 say() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 [ -f "$MANIFEST" ] || { echo "Nothing recorded at $MANIFEST; nothing to remove."; exit 0; }
 command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }

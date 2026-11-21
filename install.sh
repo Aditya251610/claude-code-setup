@@ -49,7 +49,9 @@ say "System: $OS${PM:+ (package manager: $PM)}"
 command -v jq >/dev/null 2>&1 || die "jq is required. Install it first (e.g. 'brew install jq', 'sudo pacman -S jq', 'sudo apt install jq')."
 
 # ── Source: this clone, or fetch one ─────────────────────────────────────
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
+HERE=""
+# Only trust the script's own folder when run from a file; when piped (curl | bash) there is none.
+[ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ] && HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -n "$HERE" ] && [ -f "$HERE/.ccs-root" ]; then
   SRC="$HERE"
 else
