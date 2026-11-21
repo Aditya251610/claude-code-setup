@@ -15,4 +15,6 @@ done
 printf '%-16s validate  ' marketplace
 claude plugin validate . >/dev/null 2>&1 && echo "ok" || { echo "FAILED"; fail=1; }
 bash -n install.sh && bash -n uninstall.sh && echo "shell scripts parse" || fail=1
+echo "installer round trip (throwaway home):"
+./scripts/test-install.sh || fail=1
 exit $fail

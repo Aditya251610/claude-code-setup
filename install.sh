@@ -12,14 +12,17 @@ MANIFEST="$CLAUDE_DIR/.claude-code-setup.manifest"
 BEGIN='<!-- claude-code-setup:begin -->'
 END='<!-- claude-code-setup:end -->'
 MARK='managed by claude-code-setup'
-DRY=0; PIN=1; MODS=1; LSP=""
+DRY=0; PIN=1; MODS=1; LSP=""; PACKS=""; STYLE=""
 
 usage() { cat <<'U'
 Usage: install.sh [options]
   --dry-run          show what would change, change nothing
   --no-model-pin     do not set the default model / effort in settings.json
   --no-mods          skip installing the mods (plugins)
-  --lsp LIST         also set up language-server plugins: python,rust,cpp,go (prints the
+  --lang LIST        install language rules (python,rust,go,cpp,ts): short defaults that load
+                     only when matching files are touched; prints what toolchain is missing
+  --style NAME       install and select an output style (terse: short bullets, no recap)
+  --lsp LIST         also set up language-server plugins: python,rust,cpp,go,ts (prints the
                      system commands for the servers; never runs sudo)
   -h, --help
 U
@@ -27,6 +30,7 @@ U
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;; --no-model-pin) PIN=0 ;; --no-mods) MODS=0 ;;
+    --lang) PACKS="${2:-}"; shift ;; --style) STYLE="${2:-}"; shift ;;
     --lsp) LSP="${2:-}"; shift ;; -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac; shift
@@ -67,13 +71,14 @@ fi
 BK="$CLAUDE_DIR/backups/claude-code-setup-$(date +%Y%m%d-%H%M%S)"
 backup() { local p="$1"; { [ -e "$p" ] || [ -L "$p" ]; } || return 0
   act mkdir -p "$BK/$(dirname "${p#"$CLAUDE_DIR"/}")"; act cp -a "$p" "$BK/${p#"$CLAUDE_DIR"/}"; }
-# New entries go to a side file. When the run ends the side file replaces the manifest; if the run fails
-# part way, it is merged into the old manifest instead, so uninstall still knows everything that was added.
+# New entries go to a side file and are merged into the manifest when the run ends, however it ends.
 NEWM="$MANIFEST.new"
 record() { [ "$DRY" = 1 ] && return 0; printf '%s\n' "$*" >> "$NEWM"; }
-finish_manifest() { local rc=$?; [ -f "$NEWM" ] || return 0
-  if [ "$rc" -eq 0 ]; then mv "$NEWM" "$MANIFEST"
-  else { [ -f "$MANIFEST" ] && cat "$MANIFEST"; cat "$NEWM"; } | awk '!seen[$0]++' > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"; rm -f "$NEWM"; fi; }
+# The manifest only ever grows: a run with other options (or one that fails) must not forget what an
+# earlier run installed. The earliest line per kind+path wins, so the first record of the user's own
+# settings (what they had before us) is never overwritten. Uninstall skips anything already gone.
+finish_manifest() { [ -f "$NEWM" ] || return 0
+  { [ -f "$MANIFEST" ] && cat "$MANIFEST"; cat "$NEWM"; } | awk '!seen[$1" "$2]++' > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"; rm -f "$NEWM"; }
 [ "$DRY" = 1 ] || { mkdir -p "$CLAUDE_DIR"; : > "$NEWM"; trap finish_manifest EXIT; }
 
 # ── Skills: symlinks (so `git pull` updates them) ────────────────────────
@@ -98,6 +103,42 @@ for f in "$SRC"/agents/*.md; do
   if [ -e "$t" ] && cmp -s "$f" "$t"; then echo "    ok      $n"; else backup "$t"; act cp "$f" "$t"; echo "    copy    $n"; fi
   record "file $t"
 done
+
+# ── Languages (opt-in): each language is self-contained, so they never mix ──
+#   rule  -> ~/.claude/rules/<lang>.md       short guardrails, auto-loaded only when matching files are touched
+#   skill -> ~/.claude/skills/<lang>-best-practices   a fuller playbook, loaded only when you ask about that language
+if [ -n "$PACKS" ]; then
+  say "Languages -> $CLAUDE_DIR/rules and $CLAUDE_DIR/skills ($PACKS)"
+  act mkdir -p "$CLAUDE_DIR/rules" "$CLAUDE_DIR/skills"
+  have() { command -v "$1" >/dev/null 2>&1; }
+  sys() { case "$PM" in pacman) echo "sudo pacman -S $1";; apt-get) echo "sudo apt install $2";; dnf) echo "sudo dnf install $3";; brew) echo "brew install $4";; *) echo "install $4 with your package manager";; esac; }
+  IFS=',' read -ra WANT <<< "$PACKS"
+  for l in "${WANT[@]}"; do
+    case "$l" in ts) l=typescript ;; c|c++) l=cpp ;; esac
+    case "$l" in python|rust|go|cpp|typescript) ;; *) warn "unknown language '$l' (use python, rust, go, cpp, ts)"; continue ;; esac
+    t="$CLAUDE_DIR/rules/$l.md"
+    if [ -e "$t" ] && ! grep -q "$MARK" "$t"; then warn "rule '$l.md' already exists and is not ours; left alone"
+    else
+      if [ -e "$t" ] && cmp -s "$SRC/langs/$l/rule.md" "$t"; then echo "    ok      rule  $l"; else backup "$t"; act cp "$SRC/langs/$l/rule.md" "$t"; echo "    copy    rule  $l"; fi
+      record "file $t"
+    fi
+    sk="$CLAUDE_DIR/skills/$l-best-practices"; src="$SRC/langs/$l/skill"
+    if [ -L "$sk" ] && [ "$(readlink "$sk")" = "$src" ]; then echo "    ok      skill $l-best-practices"; record "symlink $sk"
+    elif [ -e "$sk" ] || [ -L "$sk" ]; then warn "skill '$l-best-practices' already exists and is not ours; left alone"
+    else act ln -s "$src" "$sk"; echo "    link    skill $l-best-practices"; record "symlink $sk"; fi
+    case "$l" in
+      python) have python3 || echo "    missing: python3 ($(sys python python3 python3 python))"
+              have ruff   || echo "    missing: ruff    (uv tool install ruff   or: pip install --user ruff)"
+              have pytest || echo "    missing: pytest  (uv tool install pytest   or: pip install --user pytest)" ;;
+      rust)   have cargo  || echo "    missing: Rust toolchain (install rustup from https://rustup.rs, then: rustup component add clippy rustfmt rust-analyzer)" ;;
+      go)     have go     || echo "    missing: go      ($(sys go golang-go golang go))" ;;
+      cpp)    have g++ || have clang++ || echo "    missing: C++ compiler ($(sys gcc g++ gcc-c++ gcc))"
+              have cmake  || echo "    missing: cmake   ($(sys cmake cmake cmake cmake))" ;;
+      typescript) have node || echo "    missing: node    ($(sys nodejs nodejs nodejs node))"
+              have tsc    || echo "    missing: tsc     (npm i -g typescript, or add typescript to the project)" ;;
+    esac
+  done
+fi
 
 # ── CLAUDE.md: a managed block, the rest of the file is untouched ────────
 say "Instructions -> $CLAUDE_DIR/CLAUDE.md (managed block)"
@@ -139,6 +180,26 @@ else
   record "settings $SJ pin=$PIN ${HAD:-}"
 fi
 
+# ── Output style (opt-in) ────────────────────────────────────────────────
+if [ -n "$STYLE" ]; then
+  case "$STYLE" in
+    terse)
+      say "Output style -> $CLAUDE_DIR/output-styles/terse.md"
+      t="$CLAUDE_DIR/output-styles/terse.md"
+      act mkdir -p "$CLAUDE_DIR/output-styles"
+      if [ -e "$t" ] && ! grep -q "$MARK" "$t"; then warn "output style 'terse' already exists and is not ours; left alone"
+      else
+        if [ -e "$t" ] && cmp -s "$SRC/output-styles/terse.md" "$t"; then echo "    ok      terse.md"; else backup "$t"; act cp "$SRC/output-styles/terse.md" "$t"; echo "    copy    terse.md"; fi
+        record "file $t"
+        if [ "$DRY" = 1 ]; then echo "    [dry-run] select it as the default (outputStyle) unless you already chose one"
+        elif [ "$(jq -r 'has("outputStyle")' "$SJ")" = "false" ]; then
+          jq '.outputStyle = "Terse"' "$SJ" > "$SJ.new" && mv "$SJ.new" "$SJ"; record "outputstyle $SJ"; echo "    selected as your default style (change it any time with /output-style)"
+        else echo "    you already have an output style set; left it. Switch with /output-style"; fi
+      fi ;;
+    *) warn "unknown style '$STYLE' (available: terse)" ;;
+  esac
+fi
+
 # ── Mods (plugins) ───────────────────────────────────────────────────────
 if [ "$MODS" = 1 ] && [ -f "$SRC/.claude-plugin/marketplace.json" ]; then
   say "Mods"
@@ -165,6 +226,7 @@ if [ -n "$LSP" ]; then
       rust)   plug=rust-analyzer-lsp; cmd="rustup component add rust-analyzer" ;;
       cpp)    plug=clangd-lsp;        case "$PM" in pacman) cmd="sudo pacman -S clang";; apt-get) cmd="sudo apt install clangd";; dnf) cmd="sudo dnf install clang-tools-extra";; brew) cmd="brew install llvm";; *) cmd="install clangd with your package manager";; esac ;;
       go)     plug=gopls-lsp;         cmd="go install golang.org/x/tools/gopls@latest" ;;
+      ts)     plug=typescript-lsp;    cmd="npm i -g typescript typescript-language-server" ;;
       *) warn "unknown language '$l'"; continue ;;
     esac
     command -v claude >/dev/null 2>&1 && { act claude plugin install "$plug@claude-plugins-official" --scope user && record "plugin $plug@claude-plugins-official" || warn "could not install $plug"; }

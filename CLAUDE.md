@@ -23,6 +23,7 @@
 - Do not wait for it. Between unrelated tasks, or at a natural stopping point, suggest `/compact <what to keep>`; before ending a long session use the `handoff` skill.
 
 ## Working style
-- Python is the main language; also Rust, C/C++ and Go. Prefer standard tooling: `pytest`, `ruff`, `cargo test`/`clippy`, `go test`, `ctest`.
+- Use the project's own tooling and config first. Language-specific defaults (Python, Rust, Go, C/C++, TypeScript) live in `~/.claude/rules/` when installed and load only when matching files are touched.
 - Verify claims by running things where practical, and report failures plainly.
-- Do not commit, push, or run destructive commands unless asked.
+- Commit or push only when the user asks for that exact action in that message. An earlier approval does not carry over to later changes, and "don't commit" stands for the rest of the session. Staging, diffs and status are fine.
+- Do not run destructive commands unless asked.

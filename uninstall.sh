@@ -25,6 +25,8 @@ while read -r kind path rest; do
           | (if $keepe == 0 and .effortLevel == $b.effortLevel then del(.effortLevel) else . end)' --argjson keepm "$([[ " $rest " == *"had_model=1"* ]] && echo 1 || echo 0)" --argjson keepe "$([[ " $rest " == *"had_effort=1"* ]] && echo 1 || echo 0)" "$path" > "$path.new" && mv "$path.new" "$path"
         echo "    removed our entries from $path (your other settings are untouched)"
       fi ;;
+    outputstyle)
+      [ -f "$path" ] && { jq 'if .outputStyle == "Terse" then del(.outputStyle) else . end' "$path" > "$path.new" && mv "$path.new" "$path"; echo "    cleared the Terse output style from $path"; } ;;
     plugin) command -v claude >/dev/null 2>&1 && claude plugin uninstall "$path" >/dev/null 2>&1 && echo "    uninstalled plugin $path" || true ;;
   esac
 done < "$MANIFEST"

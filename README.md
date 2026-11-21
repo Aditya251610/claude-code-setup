@@ -1,6 +1,6 @@
 # claude-code-setup
 
-An opinionated, token-frugal global setup for [Claude Code](https://code.claude.com): a model and effort policy, three subagents, six skills, deny rules that keep junk out of the context, and a set of mods (an agent and token board, command toasts, a big-read guard, done notifications).
+An opinionated, token-frugal global setup for [Claude Code](https://code.claude.com): a model and effort policy, three subagents, seven skills, opt-in language guardrails and playbooks, deny rules that keep junk out of the context, and a set of mods (an agent and token board, command toasts, a big-read guard, done notifications).
 
 ## Install
 
@@ -31,7 +31,9 @@ Works on Linux, macOS and WSL. Needs `jq` and `git`; the mods need Claude Code 2
 | `--dry-run` | Preview only. |
 | `--no-model-pin` | Do not set the default model and effort in `settings.json`. |
 | `--no-mods` | Skip the mods. |
-| `--lsp python,rust,cpp,go` | Also install the language-server plugins and print the commands for the servers. |
+| `--lang python,rust,go,cpp,ts` | Install language guardrails and playbooks for the languages you pick (see below). Prints any toolchain you are missing. |
+| `--style terse` | Install and select the Terse output style (short bullets, no recap). Switch any time with `/output-style`. |
+| `--lsp python,rust,cpp,go,ts` | Also install the language-server plugins and print the commands for the servers. |
 
 Remove everything it added with `./uninstall.sh`.
 
@@ -60,6 +62,13 @@ Remove everything it added with `./uninstall.sh`.
 | `done-notify` | Desktop notification when a long turn finishes. |
 | `blast-radius` | Holds risky commands and shows what they would change (Anthropic sample). |
 
+## Languages (opt-in)
+Each language is its own folder under `langs/` and installs two small pieces that never mix with another language's:
+- **Guardrails** (`~/.claude/rules/<language>.md`): a short checklist (formatter, linter, tests, the language's classic traps) that loads only when Claude touches that language's files. A Python session never sees the Rust rules.
+- **Playbook** (`~/.claude/skills/<language>-best-practices`): a fuller guide to project layout, testing, tooling and pitfalls that loads only when you ask about that language, for example "how should I set up a Rust project".
+
+They are written from official sources (PEP 8 and ruff, the Rust Book and Cargo book, Effective Go, the C++ Core Guidelines, the TypeScript handbook and others; the sources are listed in each playbook). The project's own config always wins over them. Languages: Python, Rust, Go, C and C++, TypeScript.
+
 ## Using the board
 - It opens by itself beside the chat; `/board` brings it back if you closed it (the ✕ only hides it).
 - Subagents are not shown all the time. Press `↓` under the prompt, pick one and press `Enter`: the chat shows its conversation and the board shows its details. `Back` returns to the main chat.
@@ -68,7 +77,7 @@ Remove everything it added with `./uninstall.sh`.
 - Buttons take the mouse, or their hotkey after `ctrl+x` then `Tab` gives the board the keyboard.
 
 ## Development
-`scripts/test.sh` runs every mod's tests and validates the plugins and the marketplace.
+`scripts/test.sh` runs every mod's tests and validates the plugins and the marketplace. `scripts/test-install.sh` installs and uninstalls everything into a throwaway home and checks the result.
 
 ## Notes
 - The mods draw no fixed colours: panes are transparent (a glassy terminal shows through), borders and meaning use Claude Code theme keys, and text uses your terminal's foreground. For colours that follow your terminal's own palette, pick an ANSI theme with `/theme`.
